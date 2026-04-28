@@ -115,17 +115,17 @@ SMTP_HOST=sandbox.smtp.mailtrap.io
 SMTP_PORT=2525
 SMTP_USER=seu_usuario_mailtrap
 SMTP_PASS=sua_senha_mailtrap
-DEFAULT_EMAIL_FROM=from@example.com
-
-# destinatario padrao de testes
-TEST_EMAIL_TO=to@example.com
+SENDER_EMAIL=from@example.com
+RECIPIENT_EMAIL=to@example.com
 ```
+
 
 Observacoes:
 
 - A collection no Mongo e definida pela fonte selecionada.
 - `MONGODB_COLLECTION` funciona como fallback interno quando nenhuma collection e informada na chamada.
 - Para desativar persistencia mesmo com URI definida, use `MONGODB_ENABLED=0`.
+- O remetente do e-mail é definido por `SENDER_EMAIL` e o destinatário por `RECIPIENT_EMAIL`.
 
 ## Execucao da Pipeline
 
