@@ -49,7 +49,7 @@ class SavedRecordEmailNotifier:
         )
 
         # O HTML concentra os campos principais e inclui o JSON salvo para auditoria visual.
-        html_body = self._build_saved_record_html(
+        html_body = self.build_saved_record_html(
             source_label=source_label,
             source_id=source_id,
             collection_name=collection_name,
