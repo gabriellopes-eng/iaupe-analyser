@@ -196,3 +196,40 @@ Cronograma de notificacao no sandbox:
 - Nao versionar `.env`.
 - Nao expor credenciais em commits, logs ou README.
 - Rotacionar chaves caso alguma seja exposta.
+
+# Como trocar o modelo de IA (Gemini) ou usar outro agente
+
+O pipeline foi projetado para ser flexível, mas atualmente está integrado ao Google Gemini (via SDK `google.genai`).
+
+Se você quiser usar outro modelo de IA (como Qwen, Haama, GPT, etc.), siga estas orientações:
+
+### 1. Trocar apenas o modelo Gemini (ex: de `gemini-2.5-flash` para outro Gemini ou agente)
+
+- Basta alterar a constante `MODEL` em `pipeline/pdf_pipeline/analyzer.py`:
+   ```python
+   MODEL = "gemini-2.5-pro"  # ou outro modelo Gemini disponível
+   # ou
+   MODEL = "agente"  # se o backend/SDK suportar esse nome
+   ```
+- **Limite:** O modelo precisa ser suportado pelo Google GenAI SDK ou pelo backend configurado.
+
+### 2. Usar outro provedor/modelo (Qwen, Haama, GPT, etc.)
+
+- **Não basta trocar o nome do modelo.**
+- Você precisará:
+   - Instalar o SDK ou biblioteca do novo provedor (ex: `pip install dashscope` para Qwen, `openai` para GPT, etc.).
+   - Implementar uma função de chamada específica para o novo modelo (ex: `call_qwen`, `call_gpt`).
+   - Adaptar a autenticação, o envio do prompt e o parsing da resposta conforme a documentação do novo SDK/API.
+   - Substituir a chamada a `call_gemini` por sua nova função no fluxo de análise.
+
+#### Exemplo de pontos a adaptar:
+- **Autenticação:** cada provedor usa um método diferente (API key, token, etc.).
+- **Limite de tokens:** cada modelo tem limites próprios para prompt e resposta.
+- **Formato de resposta:** pode ser texto puro, JSON, ou outro formato — ajuste o parsing conforme necessário.
+- **Desempenho:** a qualidade e velocidade variam entre modelos; recomenda-se testar antes de migrar em produção.
+
+### 3. Recomendações
+
+- Sempre consulte a documentação oficial do modelo/SDK que deseja usar.
+- Teste localmente em uma cópia da pipeline antes de migrar para produção.
+- Se criar uma nova função de chamada, mantenha a interface semelhante à de `call_gemini` para facilitar a troca.
