@@ -116,8 +116,6 @@ def fetch_open_chamadas(origin: str, token: str) -> list[FinepOpenCall]:
                 ),
             }
         )
-
-    print(f"[FINEP] Chamadas em aberto encontradas via API: {len(eventos)}")
     return eventos
 
 
@@ -225,15 +223,12 @@ def collect_documents(url_lista: str = BASE_URL) -> list[FinepDocument]:
         return []
 
     if not eventos:
-        print("[FINEP] Nenhuma chamada em aberto encontrada.")
         return []
 
-    for idx, evento in enumerate(eventos, start=1):
+    for evento in eventos:
         chamada_id = evento["id"]
         chamada_titulo = evento["chamada_titulo"]
         url_evento = evento["chamada_url"]
-
-        print(f"[FINEP] [{idx}/{len(eventos)}] Processando chamada")
 
         try:
             docs_evento = fetch_pdf_documents_for_chamada(
@@ -255,8 +250,6 @@ def collect_documents(url_lista: str = BASE_URL) -> list[FinepDocument]:
 
         vistos_pdf_global.add(doc_principal["pdf_url"])
         documentos.append(doc_principal)
-
-    print(f"[FINEP] PDFs selecionados para pipeline: {len(documentos)}")
 
     return documentos
 
