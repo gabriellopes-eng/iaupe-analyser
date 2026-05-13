@@ -1,12 +1,23 @@
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from base64 import b64encode
 from typing import TypedDict
+from urllib.parse import urljoin, urlparse
+
+import requests
 
 SOURCE_KEY = "finep"
 SOURCE_LABEL = "FINEP"
 BASE_URL = "https://www.finep.gov.br/oportunidades"
 MONGO_COLLECTION = "editais_finep"
+
+OAUTH_TOKEN_PATH = "/o/oauth2/token"
+CHAMADAS_API_PATH = "/o/c/chamadapublicas?sort=dataDePublicacao:desc"
+DOCUMENTOS_API_PATH_TEMPLATE = "/o/c/chamadapublicas/{chamada_id}/documentos?sort=dataDePublicacao:desc"
+CHAMADA_DETAIL_PATH_TEMPLATE = "/e/chamada-publica/222684/{chamada_id}"
+FIRST_PAGE = 1
+
+# essas sao as credenciais observadas no frontend da pagina de oportunidades.
+OAUTH_CLIENT_ID = "idClientPRD"
+OAUTH_CLIENT_SECRET = "secretClientPRD"
 
 
 class FinepDocument(TypedDict):
@@ -17,171 +28,242 @@ class FinepDocument(TypedDict):
     chamada_url: str
 
 
-# Mantem os metadados da ultima coleta para inspecao/depuracao sem quebrar
-# o contrato atual do pipeline (collect_links -> list[str]).
+class FinepOpenCall(TypedDict):
+    id: int
+    chamada_titulo: str
+    chamada_url: str
+
+
 LAST_COLLECTED_DOCUMENTS: list[FinepDocument] = []
 
 
-def safe_text(node) -> str:
-    if not node:
-        return ""
-    return node.get_text(" ", strip=True)
+def get_site_origin(url: str = BASE_URL) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+
+    parsed_base = urlparse(BASE_URL)
+    return f"{parsed_base.scheme}://{parsed_base.netloc}"
 
 
-def request_html(url: str) -> str:
-    resp = requests.get(
-        url,
-        headers={"User-Agent": "Mozilla/5.0"},
+def get_oauth_token(origin: str) -> str:
+    raw_auth = f"{OAUTH_CLIENT_ID}:{OAUTH_CLIENT_SECRET}".encode("utf-8")
+    basic_auth = b64encode(raw_auth).decode("ascii")
+
+    response = requests.post(
+        urljoin(origin, OAUTH_TOKEN_PATH),
+        data={"grant_type": "client_credentials"},
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": f"Basic {basic_auth}",
+        },
         timeout=30,
     )
-    resp.raise_for_status()
-    return resp.text
+    response.raise_for_status()
+
+    token = (response.json() or {}).get("access_token")
+    if not token:
+        raise RuntimeError("Token OAuth da FINEP nao retornado")
+
+    return str(token)
 
 
-def extract_chamada_links(url_lista: str, soup: BeautifulSoup) -> list[str]:
-    eventos: list[str] = []
-    vistos_eventos: set[str] = set()
+def is_open_situacao(chamada: dict) -> bool:
+    situacao = chamada.get("situacao") or {}
+    situacao_key = str(situacao.get("key") or "").strip().lower()
+    situacao_name = str(situacao.get("name") or "").strip().lower()
+    return situacao_key == "aberta" or situacao_name == "aberta"
 
-    # site com nova estrutura principal.
-    selectors = [
-        "div.lista-container div.lista-cards div.card.mb-3.chamada-card div.link-interna a[href]",
-        "div.lista-cards div.card.mb-3.chamada-card a[href]",
-        "div.card.mb-3.chamada-card a[href]",
-    ]
 
-    for selector in selectors:
-        for a in soup.select(selector):
-            href_evento = (a.get("href") or "").split("#", 1)[0].strip()
-            if not href_evento:
-                continue
+def fetch_open_chamadas(origin: str, token: str) -> list[FinepOpenCall]:
+    eventos: list[FinepOpenCall] = []
+    vistos: set[int] = set()
 
-            url_evento = urljoin(url_lista, href_evento)
+    api_url = f"{urljoin(origin, CHAMADAS_API_PATH)}&page={FIRST_PAGE}"
+    response = requests.get(
+        api_url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": f"Bearer {token}",
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
 
-            # Mantem filtro para paginas de chamadas publicas e protege contra
-            # pequenas mudancas de rota.
-            lower = url_evento.lower()
-            if "/chamadas-publicas/" not in lower and "chamadapublica" not in lower:
-                continue
+    payload = response.json() or {}
+    items = payload.get("items") or []
 
-            if url_evento not in vistos_eventos:
-                vistos_eventos.add(url_evento)
-                eventos.append(url_evento)
+    for chamada in items:
+        if not is_open_situacao(chamada):
+            continue
 
-        if eventos:
-            break
+        chamada_id = chamada.get("id")
+        if not isinstance(chamada_id, int):
+            continue
 
+        if chamada_id in vistos:
+            continue
+        vistos.add(chamada_id)
+
+        eventos.append(
+            {
+                "id": chamada_id,
+                "chamada_titulo": str(chamada.get("titulo") or "Chamada sem titulo"),
+                "chamada_url": urljoin(
+                    origin,
+                    CHAMADA_DETAIL_PATH_TEMPLATE.format(chamada_id=chamada_id),
+                ),
+            }
+        )
+
+    print(f"[FINEP] Chamadas em aberto encontradas via API: {len(eventos)}")
     return eventos
 
 
-def extract_pdf_documents_from_chamada(url_evento: str, soup_evento: BeautifulSoup) -> list[FinepDocument]:
-    documentos: list[FinepDocument] = []
-    vistos_pdf: set[str] = set()
+def build_documents_from_entry(
+    origin: str,
+    chamada_titulo: str,
+    chamada_url: str,
+    entry: dict,
+) -> list[FinepDocument]:
+    docs: list[FinepDocument] = []
+    legenda = str(entry.get("legenda") or "").strip()
+    data = str(entry.get("dateCreated") or "").strip()
 
-    # Nova estrutura da secao "Lista de Documentos".
-    rows = soup_evento.select(
-        "div#documentos-chamada-wrapper table.documentos-table tbody#documentos-body.documentos-list tr"
-    )
-    if not rows:
-        # Fallback mais resiliente para pequenas mudancas de classe/id.
-        rows = soup_evento.select("div#documentos-chamada-wrapper tbody tr")
-
-    if not rows:
-        return documentos
-
-    titulo_node = soup_evento.select_one("h1") or soup_evento.select_one("h2")
-    chamada_titulo = safe_text(titulo_node) or "Chamada sem titulo"
-
-    for row in rows:
-        cells = row.select("td")
-        data = safe_text(cells[0]) if len(cells) >= 1 else ""
-        documento_nome = safe_text(cells[1]) if len(cells) >= 2 else ""
-        downloads_cell = row.select_one("td.downloads")
-        if not downloads_cell:
+    for field_name in ("documentoProprietario", "documentoAberto"):
+        doc_field = entry.get(field_name) or {}
+        href = str((doc_field.get("link") or {}).get("href") or "").strip()
+        if not href:
             continue
 
-        for a in downloads_cell.select("a[href]"):
-            href_doc = (a.get("href") or "").split("#", 1)[0].strip()
-            if not href_doc:
+        name = str(doc_field.get("name") or "").strip()
+        pdf_url = urljoin(origin, href)
+        lower = pdf_url.lower()
+        if lower.endswith(".csv") or lower.endswith(".odt"):
+            continue
+        if not (lower.endswith(".pdf") or ".pdf?" in lower or name.lower().endswith(".pdf")):
+            continue
+
+        docs.append(
+            {
+                "chamada_titulo": chamada_titulo,
+                "documento_nome": legenda or name or "Documento sem nome",
+                "data": data,
+                "pdf_url": pdf_url,
+                "chamada_url": chamada_url,
+            }
+        )
+
+    return docs
+
+
+def fetch_pdf_documents_for_chamada(
+    *,
+    origin: str,
+    token: str,
+    chamada_id: int,
+    chamada_titulo: str,
+    chamada_url: str,
+) -> list[FinepDocument]:
+    docs: list[FinepDocument] = []
+    vistos: set[str] = set()
+
+    api_url = (
+        f"{urljoin(origin, DOCUMENTOS_API_PATH_TEMPLATE.format(chamada_id=chamada_id))}"
+        f"&page={FIRST_PAGE}"
+    )
+    response = requests.get(
+        api_url,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Authorization": f"Bearer {token}",
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+
+    payload = response.json() or {}
+    items = payload.get("items") or []
+    for entry in items:
+        for doc in build_documents_from_entry(
+            origin=origin,
+            chamada_titulo=chamada_titulo,
+            chamada_url=chamada_url,
+            entry=entry,
+        ):
+            if doc["pdf_url"] in vistos:
                 continue
+            vistos.add(doc["pdf_url"])
+            docs.append(doc)
 
-            # Captura somente o link associado ao icone de PDF.
-            has_pdf_icon = bool(a.select_one("svg.lexicon-icon-doc-file-pdf"))
-            url_doc = urljoin(url_evento, href_doc)
-            is_pdf_url = url_doc.lower().endswith(".pdf") or ".pdf" in url_doc.lower()
+    return docs
 
-            if not has_pdf_icon and not is_pdf_url:
-                continue
 
-            # Ignora explicitamente formatos nao desejados.
-            lower_doc = url_doc.lower()
-            if lower_doc.endswith(".csv") or lower_doc.endswith(".odt"):
-                continue
+def pick_main_document(docs: list[FinepDocument]) -> FinepDocument | None:
+    if not docs:
+        return None
 
-            if url_doc in vistos_pdf:
-                continue
-            vistos_pdf.add(url_doc)
+    for doc in docs:
+        if "edital" in (doc.get("documento_nome") or "").lower():
+            return doc
 
-            documentos.append(
-                {
-                    "chamada_titulo": chamada_titulo,
-                    "documento_nome": documento_nome or "Documento sem nome",
-                    "data": data,
-                    "pdf_url": url_doc,
-                    "chamada_url": url_evento,
-                }
-            )
-
-    return documentos
+    return docs[0]
 
 
 def collect_documents(url_lista: str = BASE_URL) -> list[FinepDocument]:
-    """
-    Coleta documentos PDF das chamadas da FINEP com metadados.
-
-    Fluxo:
-    1) acessa pagina principal de oportunidades
-    2) percorre cards de chamadas publicas
-    3) entra em cada pagina de chamada
-    4) extrai somente links PDF da tabela "Lista de Documentos"
-    """
-    try:
-        html = request_html(url_lista)
-    except requests.RequestException:
-        return []
-
-    soup = BeautifulSoup(html, "lxml")
-    eventos = extract_chamada_links(url_lista, soup)
-    if not eventos:
-        return []
-
     documentos: list[FinepDocument] = []
     vistos_pdf_global: set[str] = set()
 
-    for url_evento in eventos:
+    origin = get_site_origin(url_lista)
+
+    try:
+        token = get_oauth_token(origin)
+        eventos = fetch_open_chamadas(origin, token)
+    except Exception as exc:
+        print(f"[FINEP] Falha ao consultar chamadas abertas: {exc}")
+        return []
+
+    if not eventos:
+        print("[FINEP] Nenhuma chamada em aberto encontrada.")
+        return []
+
+    for idx, evento in enumerate(eventos, start=1):
+        chamada_id = evento["id"]
+        chamada_titulo = evento["chamada_titulo"]
+        url_evento = evento["chamada_url"]
+
+        print(f"[FINEP] [{idx}/{len(eventos)}] Processando chamada")
+
         try:
-            html_evento = request_html(url_evento)
+            docs_evento = fetch_pdf_documents_for_chamada(
+                origin=origin,
+                token=token,
+                chamada_id=chamada_id,
+                chamada_titulo=chamada_titulo,
+                chamada_url=url_evento,
+            )
         except requests.RequestException:
             continue
 
-        soup_evento = BeautifulSoup(html_evento, "lxml")
-        docs_evento = extract_pdf_documents_from_chamada(url_evento, soup_evento)
-        if not docs_evento:
-            # Nao falha a coleta inteira se uma chamada estiver sem PDF.
+        doc_principal = pick_main_document(docs_evento)
+        if not doc_principal:
             continue
 
-        for doc in docs_evento:
-            if doc["pdf_url"] in vistos_pdf_global:
-                continue
-            vistos_pdf_global.add(doc["pdf_url"])
-            documentos.append(doc)
+        if doc_principal["pdf_url"] in vistos_pdf_global:
+            continue
+
+        vistos_pdf_global.add(doc_principal["pdf_url"])
+        documentos.append(doc_principal)
+
+    print(f"[FINEP] PDFs selecionados para pipeline: {len(documentos)}")
 
     return documentos
 
 
 def collect_links(url_lista: str = BASE_URL) -> list[str]:
-    """
-    Contrato legado da pipeline: retorna somente lista de URLs de PDF.
-    """
     global LAST_COLLECTED_DOCUMENTS
+
     LAST_COLLECTED_DOCUMENTS = collect_documents(url_lista)
+
     return [doc["pdf_url"] for doc in LAST_COLLECTED_DOCUMENTS]
