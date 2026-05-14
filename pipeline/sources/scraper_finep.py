@@ -14,6 +14,7 @@ CHAMADAS_API_PATH = "/o/c/chamadapublicas?sort=dataDePublicacao:desc"
 DOCUMENTOS_API_PATH_TEMPLATE = "/o/c/chamadapublicas/{chamada_id}/documentos?sort=dataDePublicacao:desc"
 CHAMADA_DETAIL_PATH_TEMPLATE = "/e/chamada-publica/222684/{chamada_id}"
 FIRST_PAGE = 1
+MAX_CALLS_FIRST_PAGE = 8
 
 # essas sao as credenciais observadas no frontend da pagina de oportunidades.
 OAUTH_CLIENT_ID = "idClientPRD"
@@ -116,6 +117,9 @@ def fetch_open_chamadas(origin: str, token: str) -> list[FinepOpenCall]:
                 ),
             }
         )
+
+        if len(eventos) >= MAX_CALLS_FIRST_PAGE:
+            break
     return eventos
 
 
