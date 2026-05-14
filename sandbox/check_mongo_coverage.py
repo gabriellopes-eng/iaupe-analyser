@@ -11,7 +11,7 @@ from pymongo import MongoClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pipeline.sources import scraper_capes, scraper_cnpq, scraper_facepe, scraper_finep
+from pipeline.sources import finep, scraper_capes, scraper_cnpq, scraper_facepe
 
 load_dotenv(override=True)
 
@@ -28,11 +28,11 @@ SOURCE_REGISTRY = {
         "mongo_collection": scraper_cnpq.MONGO_COLLECTION,
         "collect_links": scraper_cnpq.collect_links,
     },
-    scraper_finep.SOURCE_KEY: {
-        "label": scraper_finep.SOURCE_LABEL,
-        "base_url": scraper_finep.BASE_URL,
-        "mongo_collection": scraper_finep.MONGO_COLLECTION,
-        "collect_links": scraper_finep.collect_links,
+    finep.SOURCE_KEY: {
+        "label": finep.SOURCE_LABEL,
+        "base_url": finep.BASE_URL,
+        "mongo_collection": finep.MONGO_COLLECTION,
+        "collect_links": finep.collect_links,
     },
     scraper_capes.SOURCE_KEY: {
         "label": scraper_capes.SOURCE_LABEL,
