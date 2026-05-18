@@ -1,0 +1,51 @@
+name: Deadline Reminders
+
+on:
+  schedule:
+    # 11:00 UTC ~= 08:00 BRT
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Fonte para processar (facepe, cnpq, finep, capes)"
+        required: false
+        default: "finep"
+      reminder_steps:
+        description: "Marcos separados por virgula"
+        required: false
+        default: "30,15,7"
+
+jobs:
+  run-reminders:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run deadline reminders
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          MONGODB_ENABLED: ${{ secrets.MONGODB_ENABLED }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          PIPELINE_SOURCE: ${{ github.event.inputs.source || 'finep' }}
+          DEADLINE_REMINDER_STEPS: ${{ github.event.inputs.reminder_steps || '30,15,7' }}
+        run: |
+          cd pipeline
+          python main.py --source "$PIPELINE_SOURCE" --run-reminders --reminder-steps "$DEADLINE_REMINDER_STEPS"

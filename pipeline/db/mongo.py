@@ -85,6 +85,7 @@ def coll(collection_name: Optional[str] = None) -> Collection:
         # cache da collection por nome para reduzir overhead
         collection = client_cache[db_name][coll_name]
         collection.create_index([("url_pdf", ASCENDING)], unique=True)
+        collection.create_index([("data_limit_submissao", ASCENDING)])
         collection_cache[coll_name] = collection
 
     except PyMongoError as exc:
@@ -154,3 +155,63 @@ def save(
     except PyMongoError as exc:
         disable_mongo(str(exc))
         return "disabled"
+
+
+def find_deadline_candidates(
+    *,
+    collection_name: Optional[str],
+    start_at: datetime,
+    end_at: datetime,
+) -> list[dict]:
+    """
+    Busca editais com status ok e data_limit_submissao na janela informada.
+    """
+    try:
+        cursor = coll(collection_name).find(
+            {
+                "status": "ok",
+                "data_limit_submissao": {"$gte": start_at, "$lte": end_at},
+            },
+            {
+                "_id": 0,
+                "url_pdf": 1,
+                "resultado": 1,
+                "data_limit_submissao": 1,
+                "deadline_reminder": 1,
+            },
+        )
+        return list(cursor)
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao buscar candidatos de lembrete: {exc}")
+        return []
+
+
+def mark_deadline_step_sent(
+    *,
+    collection_name: Optional[str],
+    url_pdf: str,
+    step_days: int,
+    sent_at: Optional[datetime] = None,
+) -> bool:
+    """
+    Marca um marco de lembrete como enviado para evitar reenvio.
+    """
+    when = sent_at or datetime.now(timezone.utc)
+    try:
+        result = coll(collection_name).update_one(
+            {
+                "url_pdf": url_pdf,
+                "deadline_reminder.sent_steps": {"$ne": step_days},
+            },
+            {
+                "$addToSet": {"deadline_reminder.sent_steps": step_days},
+                "$set": {
+                    "deadline_reminder.last_sent_at": when,
+                    "updated_at": when,
+                },
+            },
+        )
+        return result.modified_count > 0
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao marcar lembrete enviado: {exc}")
+        return False

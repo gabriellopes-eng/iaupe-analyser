@@ -1,5 +1,6 @@
 import argparse
 import os
+from orchestration.deadline_reminder_runner import run_deadline_reminders
 from orchestration.pipeline_runner import run_pipeline
 from orchestration.settings import parse_limit
 from orchestration.source_registry import DEFAULT_SOURCE, SOURCE_REGISTRY
@@ -26,6 +27,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.getenv("PIPELINE_LIMIT") or "all",
         help="Limite de PDFs (all, 0, none ou numero inteiro)",
     )
+    parser.add_argument(
+        "--run-reminders",
+        action="store_true",
+        help="Executa somente notificacoes de prazo (D-30, D-15, D-7)",
+    )
+    parser.add_argument(
+        "--reminder-steps",
+        default=os.getenv("DEADLINE_REMINDER_STEPS") or "30,15,7",
+        help="Marcos de lembrete separados por virgula. Ex: 30,15,7",
+    )
     return parser
 
 
@@ -35,8 +46,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        # delega a orquestracao para o runner
-        run_pipeline(source_key=args.source, limit=parse_limit(args.limit))
+        if args.run_reminders:
+            run_deadline_reminders(
+                source_key=args.source,
+                steps_raw=args.reminder_steps,
+            )
+        else:
+            # delega a orquestracao para o runner
+            run_pipeline(source_key=args.source, limit=parse_limit(args.limit))
     except ValueError as exc:
         # erros de validacao de parametros/fonte
         print(exc)
