@@ -39,6 +39,7 @@ pipeline/
 ├── main.py                      # entrypoint da CLI
 ├── orchestration/
 │   ├── pipeline_runner.py       # fluxo completo da pipeline
+│   ├── deadline_reminder_runner.py # fluxo de lembretes (D-30, D-15, D-7)
 │   ├── source_registry.py       # registro e resolucao de fontes
 │   ├── settings.py              # configs de execucao (env/limites/sleeps)
 │   ├── retry_policy.py          # retry de erros temporarios do Gemini
@@ -46,7 +47,11 @@ pipeline/
 ├── sources/
 │   ├── scraper_facepe.py
 │   ├── scraper_cnpq.py
-│   ├── scraper_finep.py
+│   ├── finep/
+│   │   ├── __init__.py
+│   │   ├── constants.py
+│   │   ├── client.py
+│   │   └── scraper.py
 │   └── scraper_capes.py
 ├── pdf_pipeline/
 │   ├── extractor.py             # extracao de texto de PDF
@@ -54,11 +59,22 @@ pipeline/
 ├── db/
 │   └── mongo.py                 # persistencia e cache de conexao MongoDB
 └── emails/
-	├── email.py
-	├── emails_service.py
-	├── gmail_smtp_email_service.py
-	└── send_email_use_case.py
+   ├── email.py
+   ├── emails_service.py
+   ├── smtp_email_service.py
+   ├── send_email_use_case.py
+   ├── saved_record_email_notifier.py
+   └── deadline_reminder_email_notifier.py
 ```
+
+## Estrutura da FINEP (Atualizada)
+
+A fonte FINEP foi modularizada em pacote proprio para facilitar manutencao e testes.
+
+- `pipeline/sources/finep/constants.py`: constantes da fonte (rotas, collection, credenciais publicas de client).
+- `pipeline/sources/finep/client.py`: comunicacao HTTP com endpoints da FINEP (token, chamadas e documentos).
+- `pipeline/sources/finep/scraper.py`: regra de coleta e filtro dos PDFs prioritarios.
+- `pipeline/sources/finep/__init__.py`: API publica do pacote para uso no `source_registry`.
 
 ## Requisitos
 
@@ -151,6 +167,34 @@ python .\pipeline\main.py --source capes
 
 Sem `--source`, o padrao e `facepe`.
 
+## Lembretes de Prazo (D-30, D-15, D-7)
+
+O projeto agora possui um fluxo dedicado para notificacoes de prazo de submissao.
+
+Como funciona:
+
+1. Busca editais com `status=ok` e `data_limit_submissao` na janela dos marcos configurados.
+2. Calcula os dias restantes para o prazo.
+3. Envia email quando o prazo bater com um marco (ex.: 30, 15, 7).
+4. Marca no MongoDB em `deadline_reminder.sent_steps` para evitar reenvio duplicado.
+
+Execucao local dos lembretes:
+
+```powershell
+python .\pipeline\main.py --source cnpq --run-reminders --reminder-steps 30,15,7
+```
+
+Exemplo para somente D-7:
+
+```powershell
+python .\pipeline\main.py --source cnpq --run-reminders --reminder-steps 7
+```
+
+Automacao no GitHub Actions:
+
+- Workflow: `.github/workflows/deadline-reminders.yml`
+- Agendado diariamente e com suporte a disparo manual (`workflow_dispatch`).
+
 ## Tratamento de Erros
 
 - Retry de IA para `429` (respeita tempo sugerido na mensagem).
@@ -178,18 +222,35 @@ Ela existe para validar experimentos sem acoplar direto na pipeline de producao,
 - teste de conexao com MongoDB
 - teste de Gemini
 - teste de envio SMTP (Mailtrap)
-- simulacao isolada de notificacoes e workflow de GitHub Actions
+- teste de integracao do fluxo de lembrete
 
-Exemplo atual de notificacao em ambiente de teste:
+Scripts atuais no sandbox:
 
-- `sandbox/notification_actions/notify_mailtrap_sandbox.py`
-- `sandbox/notification_actions/workflow_notify_mailtrap_sandbox.yml`
+- `sandbox/test_atlas.py`
+- `sandbox/test_gemini.py`
+- `sandbox/test_email_mailtrap.py`
+- `sandbox/check_mongo_coverage.py`
+- `sandbox/test_deadline_reminder_integration.py`
 
-Cronograma de notificacao no sandbox:
+Teste de integracao de lembrete (sem pipeline de producao):
 
-- O GitHub Actions agenda a execucao automatica via cron.
-- O script Python aplica a regra de negocio dos marcos (30/15/7) e decide quando enviar.
-- Configuracao atual do cron no workflow: `0 12 * * *` (diario, 12:00 UTC).
+Modo simulacao (nao envia email):
+
+```powershell
+python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7
+```
+
+Modo real (envia email):
+
+```powershell
+python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7 --send-email
+```
+
+Opcional para forcar destinatario:
+
+```powershell
+python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7 --send-email --recipient seu_email@dominio.com
+```
 
 ## Boas Praticas
 
