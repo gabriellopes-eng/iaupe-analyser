@@ -47,7 +47,7 @@ def get_oauth_token(origin: str) -> str:
 
     token = (response.json() or {}).get("access_token")
     if not token:
-        raise RuntimeError("Token OAuth da FINEP nao retornado")
+        raise RuntimeError("Token OAuth da FINEP não retornado")
     return str(token)
 
 
@@ -75,7 +75,7 @@ def fetch_open_chamadas(origin: str, token: str) -> list[dict[str, str | int]]:
         eventos.append(
             {
                 "id": chamada_id,
-                "chamada_titulo": str(chamada.get("titulo") or "Chamada sem titulo"),
+                "chamada_titulo": str(chamada.get("titulo") or "Chamada sem título"),
                 "chamada_url": urljoin(
                     origin,
                     CHAMADA_DETAIL_PATH_TEMPLATE.format(chamada_id=chamada_id),
