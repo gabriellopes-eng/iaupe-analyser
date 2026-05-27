@@ -1,0 +1,81 @@
+name: Pipeline Runner Daily
+
+on:
+  schedule:
+    # 13:00 UTC ~= 10:00 Recife/Brasil (sem horario de verao)
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Fontes separadas por virgula (finep,facepe,cnpq,capes)"
+        required: false
+        default: "finep,facepe,cnpq,capes"
+      limit_per_source:
+        description: "Limite maximo de itens por fonte"
+        required: false
+        default: "10"
+
+jobs:
+  run-pipeline-daily:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pipeline for each source
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
+          MONGODB_ENABLED: ${{ secrets.MONGODB_ENABLED }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          PIPELINE_SOURCES: ${{ github.event.inputs.sources || 'finep,facepe,cnpq,capes' }}
+          PIPELINE_LIMIT_PER_SOURCE: ${{ github.event.inputs.limit_per_source || '10' }}
+        run: |
+          cd pipeline
+
+          IFS=',' read -ra SOURCES <<< "$PIPELINE_SOURCES"
+          OVERALL_ERRORS=0
+
+          echo "Inicio da execucao diaria"
+          echo "Sources configuradas: $PIPELINE_SOURCES"
+          echo "Limite por source: $PIPELINE_LIMIT_PER_SOURCE"
+
+          for RAW_SOURCE in "${SOURCES[@]}"; do
+            SOURCE="$(echo "$RAW_SOURCE" | xargs)"
+            if [ -z "$SOURCE" ]; then
+              continue
+            fi
+
+            echo "::group::Processando source: $SOURCE"
+            if python main.py --source "$SOURCE" --limit "$PIPELINE_LIMIT_PER_SOURCE"; then
+              echo "Source $SOURCE finalizada com sucesso."
+            else
+              OVERALL_ERRORS=1
+              echo "Erro ao processar source $SOURCE. Continuando para a proxima."
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ "$OVERALL_ERRORS" -ne 0 ]; then
+            echo "Execucao concluida com falhas em algumas sources (pipeline continuou)."
+          else
+            echo "Execucao concluida com sucesso em todas as sources."
+          fi
