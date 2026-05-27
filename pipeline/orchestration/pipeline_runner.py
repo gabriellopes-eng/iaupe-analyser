@@ -144,3 +144,4 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
 
     except Exception as exc:
         print(f"❌ Falha geral na orquestracao da pipeline: {exc}")
+        raise

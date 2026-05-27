@@ -33,6 +33,45 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Validate required configuration
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        run: |
+          REQUIRED_VARS=(
+            MONGODB_URI
+            MONGODB_DB
+            GEMINI_API_KEY
+            RECIPIENT_EMAIL
+            SMTP_HOST
+            SMTP_PORT
+            SMTP_USER
+            SMTP_PASS
+            SENDER_EMAIL
+          )
+
+          MISSING=0
+          for VAR_NAME in "${REQUIRED_VARS[@]}"; do
+            if [ -z "${!VAR_NAME}" ]; then
+              echo "Configuracao ausente: $VAR_NAME"
+              MISSING=1
+            fi
+          done
+
+          if [ "$MISSING" -ne 0 ]; then
+            echo "Falha de configuracao: defina os secrets obrigatorios no repositorio."
+            exit 1
+          fi
+
+          echo "Configuracoes obrigatorias encontradas."
+
       - name: Run pipeline for each source
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -76,6 +115,7 @@ jobs:
 
           if [ "$OVERALL_ERRORS" -ne 0 ]; then
             echo "Execucao concluida com falhas em algumas sources (pipeline continuou)."
+            exit 1
           else
             echo "Execucao concluida com sucesso em todas as sources."
           fi
