@@ -13,7 +13,7 @@ on:
       limit_per_source:
         description: "Limite maximo de itens por fonte"
         required: false
-        default: "10"
+        default: "1"
 
 jobs:
   run-pipeline-daily:
@@ -87,7 +87,7 @@ jobs:
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           PIPELINE_SOURCES: ${{ github.event.inputs.sources || 'finep,facepe,cnpq,capes' }}
-          PIPELINE_LIMIT_PER_SOURCE: ${{ github.event.inputs.limit_per_source || '10' }}
+          PIPELINE_LIMIT_PER_SOURCE: ${{ github.event.inputs.limit_per_source || '1' }}
         run: |
           cd pipeline
 

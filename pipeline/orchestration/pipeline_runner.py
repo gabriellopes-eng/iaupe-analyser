@@ -10,6 +10,17 @@ from .settings import LIMIT, SLEEP_ALREADY_EXISTS, SLEEP_EMPTY_TEXT, SLEEP_NEW_P
 from .source_registry import get_source_config
 
 
+def is_gemini_quota_exceeded(resultado: dict) -> bool:
+    raw = str((resultado or {}).get("raw") or "").lower()
+    erro = str((resultado or {}).get("erro") or "").lower()
+    return (
+        "resource_exhausted" in raw
+        or "quota exceeded" in raw
+        or ("429" in raw and "quota" in raw)
+        or "quota" in erro
+    )
+
+
 def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> None:
     """
     Orquestra o fluxo completo da pipeline para uma fonte:
@@ -26,6 +37,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         inserted_total = 0
         updated_total = 0
         empty_text_total = 0
+        analysis_error_total = 0
+        quota_exceeded_total = 0
         error_total = 0
         emails_sent_total = 0
 
@@ -81,6 +94,13 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
 
                 # analisa com politica de retry para erros temporarios da IA
                 resultado = retry_analyze_text(texto, link)
+                analysis_has_error = bool((resultado or {}).get("erro"))
+                should_stop_for_quota = analysis_has_error and is_gemini_quota_exceeded(resultado)
+                if analysis_has_error:
+                    analysis_error_total += 1
+                if should_stop_for_quota:
+                    quota_exceeded_total += 1
+
                 data_limit_submissao = parse_data_limit_submissao(
                     resultado.get("data_limit_submissao")
                 )
@@ -103,7 +123,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                 elif status == "disabled":
                     error_total += 1
 
-                if status == "inserted":
+                if status == "inserted" and not analysis_has_error:
                     try:
                         notifier.notify_saved_record(
                             source_label=source["label"],
@@ -120,8 +140,15 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                         error_total += 1
                         print(f"Falha ao enviar email de notificacao: {email_exc}")
 
+                if status == "inserted" and analysis_has_error:
+                    print("📭 Email nao enviado: analise com erro (registro salvo para auditoria).")
+
                 print(json.dumps(resultado, ensure_ascii=False, indent=2))
                 print("\n" + "-" * 60 + "\n")
+
+                if should_stop_for_quota:
+                    print("⛔ Execucao da fonte encerrada: quota do Gemini esgotada.")
+                    break
 
                 # controla ritmo para evitar sobrecarga em APIs externas
                 if i < len(links):
@@ -139,6 +166,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
             f"found={found_total} | selected={selected_total} | "
             f"already_saved={already_saved_total} | inserted={inserted_total} | "
             f"updated={updated_total} | empty_text={empty_text_total} | "
+            f"analysis_errors={analysis_error_total} | "
+            f"quota_exceeded={quota_exceeded_total} | "
             f"emails_sent={emails_sent_total} | errors={error_total}"
         )
 

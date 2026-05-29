@@ -20,6 +20,16 @@ def sleep_retry_429(raw: str) -> bool:
     return True
 
 
+def is_quota_exceeded_429(raw: str) -> bool:
+    """
+    Identifica quando o 429 veio por cota diária esgotada (nao transitorio).
+
+    Nesses casos, retries adicionais tendem a falhar ate reset da cota.
+    """
+    text = (raw or "").lower()
+    return "quota exceeded" in text or "resource_exhausted" in text
+
+
 def retry_analyze_text(texto: str, link: str) -> dict:
     """
     Tenta analisar o texto com retry para erros temporarios do Gemini:
@@ -36,6 +46,10 @@ def retry_analyze_text(texto: str, link: str) -> dict:
         raw = (resultado.get("raw") or "").lower()
 
         if "429" in raw:
+            if is_quota_exceeded_429(raw):
+                print("Gemini 429 por quota esgotada: sem retry adicional.")
+                return resultado
+
             # respeita o tempo sugerido pela API quando houver rate limit
             if tentativa < MAX_RETRIES_GEMINI and sleep_retry_429(raw):
                 continue
