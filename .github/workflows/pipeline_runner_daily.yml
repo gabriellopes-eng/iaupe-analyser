@@ -14,6 +14,10 @@ on:
         description: "Limite maximo de itens por fonte"
         required: false
         default: "1"
+      quota_circuit_breaker_enabled:
+        description: "Interrompe as demais fontes quando quota do Gemini esgotar"
+        required: false
+        default: "true"
 
 jobs:
   run-pipeline-daily:
@@ -88,15 +92,19 @@ jobs:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           PIPELINE_SOURCES: ${{ github.event.inputs.sources || 'finep,facepe,cnpq,capes' }}
           PIPELINE_LIMIT_PER_SOURCE: ${{ github.event.inputs.limit_per_source || '1' }}
+          QUOTA_CIRCUIT_BREAKER_ENABLED: ${{ github.event.inputs.quota_circuit_breaker_enabled || 'true' }}
         run: |
           cd pipeline
+          set -o pipefail
 
           IFS=',' read -ra SOURCES <<< "$PIPELINE_SOURCES"
           OVERALL_ERRORS=0
+          CIRCUIT_OPEN=0
 
           echo "Inicio da execucao diaria"
           echo "Sources configuradas: $PIPELINE_SOURCES"
           echo "Limite por source: $PIPELINE_LIMIT_PER_SOURCE"
+          echo "Quota circuit breaker: $QUOTA_CIRCUIT_BREAKER_ENABLED"
 
           for RAW_SOURCE in "${SOURCES[@]}"; do
             SOURCE="$(echo "$RAW_SOURCE" | xargs)"
@@ -104,19 +112,36 @@ jobs:
               continue
             fi
 
+            if [ "$CIRCUIT_OPEN" -eq 1 ]; then
+              echo "Circuito aberto: source $SOURCE pulada por quota esgotada."
+              continue
+            fi
+
             echo "::group::Processando source: $SOURCE"
-            if python -u main.py --source "$SOURCE" --limit "$PIPELINE_LIMIT_PER_SOURCE"; then
+            LOG_FILE="$(mktemp)"
+            if python -u main.py --source "$SOURCE" --limit "$PIPELINE_LIMIT_PER_SOURCE" 2>&1 | tee "$LOG_FILE"; then
               echo "Source $SOURCE finalizada com sucesso."
             else
               OVERALL_ERRORS=1
               echo "Erro ao processar source $SOURCE. Continuando para a proxima."
             fi
+
+            if [ "$QUOTA_CIRCUIT_BREAKER_ENABLED" = "true" ] || [ "$QUOTA_CIRCUIT_BREAKER_ENABLED" = "1" ]; then
+              if grep -Eq "quota_exceeded=[1-9]|quota do Gemini esgotada|Gemini 429 por quota esgotada" "$LOG_FILE"; then
+                CIRCUIT_OPEN=1
+                echo "Circuito aberto: quota do Gemini detectada. Demais fontes serao interrompidas."
+              fi
+            fi
+
+            rm -f "$LOG_FILE"
             echo "::endgroup::"
           done
 
           if [ "$OVERALL_ERRORS" -ne 0 ]; then
-            echo "Execucao concluida com falhas em algumas sources (pipeline continuou)."
+            echo "Execucao concluida com falhas em algumas sources."
             exit 1
+          elif [ "$CIRCUIT_OPEN" -eq 1 ]; then
+            echo "Execucao encerrada por circuito de quota (comportamento esperado)."
           else
             echo "Execucao concluida com sucesso em todas as sources."
           fi
