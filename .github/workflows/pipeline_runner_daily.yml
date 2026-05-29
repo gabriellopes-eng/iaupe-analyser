@@ -74,6 +74,7 @@ jobs:
 
       - name: Run pipeline for each source
         env:
+          PYTHONUNBUFFERED: "1"
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ secrets.MONGODB_DB }}
           MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
@@ -104,7 +105,7 @@ jobs:
             fi
 
             echo "::group::Processando source: $SOURCE"
-            if python main.py --source "$SOURCE" --limit "$PIPELINE_LIMIT_PER_SOURCE"; then
+            if python -u main.py --source "$SOURCE" --limit "$PIPELINE_LIMIT_PER_SOURCE"; then
               echo "Source $SOURCE finalizada com sucesso."
             else
               OVERALL_ERRORS=1
