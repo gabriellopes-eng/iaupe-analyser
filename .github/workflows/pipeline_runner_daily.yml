@@ -76,6 +76,42 @@ jobs:
 
           echo "Configuracoes obrigatorias encontradas."
 
+      - name: MongoDB connectivity diagnostics (ping)
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+        run: |
+          python - <<'PY'
+          import os
+          import ssl
+          import certifi
+          import pymongo
+          from pymongo import MongoClient
+
+          uri = (os.getenv("MONGODB_URI") or "").strip()
+          db_name = (os.getenv("MONGODB_DB") or "").strip() or "iaupe-analyser"
+
+          print("[Mongo ping] Python:", os.sys.version.replace("\n", " "))
+          print("[Mongo ping] PyMongo:", pymongo.version)
+          print("[Mongo ping] OpenSSL:", ssl.OPENSSL_VERSION)
+          print("[Mongo ping] certifi:", certifi.where())
+          print("[Mongo ping] DB:", db_name)
+
+          client = MongoClient(
+              uri,
+              tlsCAFile=certifi.where(),
+              serverSelectionTimeoutMS=30000,
+              connectTimeoutMS=30000,
+              socketTimeoutMS=30000,
+              retryWrites=True,
+          )
+
+          # Round-trip minimo para validar DNS SRV + TLS handshake + auth + acesso ao cluster
+          result = client.admin.command("ping")
+          print("[Mongo ping] Resultado:", result)
+          print("[Mongo ping] Conexao Atlas validada com sucesso.")
+          PY
+
       - name: Run pipeline for each source
         env:
           PYTHONUNBUFFERED: "1"

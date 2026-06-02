@@ -71,6 +71,7 @@ def coll(collection_name: Optional[str] = None) -> Collection:
     )
 
     try:
+        #É aí que o driver abre conexão TLS com Atlas.
         # cria cliente apenas uma vez e reaproveita nas chamadas seguintes
         if client_cache is None:
             client_cache = MongoClient(
