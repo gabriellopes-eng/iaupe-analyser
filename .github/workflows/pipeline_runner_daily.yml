@@ -1,6 +1,9 @@
-name: Pipeline Runner Manual Diagnostics
+name: Pipeline Runner Daily
 
 on:
+  schedule:
+    # 13:00 UTC ~= 10:00 Recife/Brasil (sem horario de verao)
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       sources:
@@ -75,10 +78,12 @@ jobs:
           echo "Configuracoes obrigatorias encontradas."
 
       - name: MongoDB connectivity diagnostics (ping)
+        id: mongo_ping
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ secrets.MONGODB_DB }}
         run: |
+          set +e
           python - <<'PY'
           import os
           import socket
@@ -184,6 +189,16 @@ jobs:
             print("[Mongo ping] Falha inesperada:", exc)
             sys.exit(1)
           PY
+          RC=$?
+          set -e
+
+          if [ "$RC" -eq 0 ]; then
+            echo "mongo_reachable=true" >> "$GITHUB_OUTPUT"
+            echo "[Mongo ping] Mongo Atlas acessivel no runner."
+          else
+            echo "mongo_reachable=false" >> "$GITHUB_OUTPUT"
+            echo "[Mongo ping] Mongo Atlas indisponivel no runner; pipeline seguira com fallback sem Mongo."
+          fi
 
       - name: Run pipeline for each source
         env:
@@ -191,7 +206,8 @@ jobs:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ secrets.MONGODB_DB }}
           MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
-          MONGODB_ENABLED: ${{ secrets.MONGODB_ENABLED }}
+          MONGODB_ENABLED: ${{ steps.mongo_ping.outputs.mongo_reachable == 'true' && (secrets.MONGODB_ENABLED || 'true') || 'false' }}
+          ALLOW_EMAIL_WITHOUT_MONGO: ${{ steps.mongo_ping.outputs.mongo_reachable == 'true' && 'false' || 'true' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}

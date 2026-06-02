@@ -1,4 +1,5 @@
 import json
+import os
 import time
 
 from db.mongo import already_exists, save
@@ -30,6 +31,10 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         source_id, source = get_source_config(source_key)
         notifier = SavedRecordEmailNotifier()
         email_enabled = notifier.is_enabled()
+        allow_email_without_mongo = (
+            (os.getenv("ALLOW_EMAIL_WITHOUT_MONGO") or "false").strip().lower()
+            in {"1", "true", "yes", "on"}
+        )
 
         found_total = 0
         selected_total = 0
@@ -123,7 +128,12 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                 elif status == "disabled":
                     error_total += 1
 
-                if status == "inserted" and not analysis_has_error:
+                should_send_email = status == "inserted" and not analysis_has_error
+                if status == "disabled" and not analysis_has_error and allow_email_without_mongo:
+                    should_send_email = True
+                    print("⚠️ Fallback ativo: envio de email sem persistencia Mongo.")
+
+                if should_send_email:
                     try:
                         notifier.notify_saved_record(
                             source_label=source["label"],
