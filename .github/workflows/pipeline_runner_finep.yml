@@ -1,4 +1,4 @@
-name: piupeline_tunner_finep
+name: pipeline_runner_finep
 
 on:
   schedule:
