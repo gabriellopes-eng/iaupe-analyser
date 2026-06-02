@@ -83,33 +83,108 @@ jobs:
         run: |
           python - <<'PY'
           import os
+          import socket
           import ssl
+          import sys
+
           import certifi
           import pymongo
           from pymongo import MongoClient
+          from pymongo.errors import ServerSelectionTimeoutError
+
+          try:
+            import dns.resolver
+          except Exception:
+            dns = None
+
+
+          def parse_seed_host(connection_uri: str) -> str:
+            if "://" not in connection_uri:
+              return ""
+            authority = connection_uri.split("://", 1)[1].split("/", 1)[0]
+            if "@" in authority:
+              authority = authority.split("@", 1)[1]
+            return authority.split(",", 1)[0]
+
+
+          def tcp_probe(host: str, port: int, timeout_seconds: float = 5.0) -> tuple[bool, str]:
+            try:
+              with socket.create_connection((host, port), timeout=timeout_seconds):
+                return True, "ok"
+            except Exception as exc:
+              return False, str(exc)
+
+
+          def tls_probe(host: str, port: int, timeout_seconds: float = 8.0) -> tuple[bool, str]:
+            try:
+              context = ssl.create_default_context(cafile=certifi.where())
+              with socket.create_connection((host, port), timeout=timeout_seconds) as raw_sock:
+                with context.wrap_socket(raw_sock, server_hostname=host):
+                  return True, "ok"
+            except Exception as exc:
+              return False, str(exc)
 
           uri = (os.getenv("MONGODB_URI") or "").strip()
           db_name = (os.getenv("MONGODB_DB") or "").strip() or "iaupe-analyser"
+          seed_host = parse_seed_host(uri)
+          is_srv = uri.startswith("mongodb+srv://")
 
           print("[Mongo ping] Python:", os.sys.version.replace("\n", " "))
           print("[Mongo ping] PyMongo:", pymongo.version)
           print("[Mongo ping] OpenSSL:", ssl.OPENSSL_VERSION)
           print("[Mongo ping] certifi:", certifi.where())
           print("[Mongo ping] DB:", db_name)
+          print("[Mongo ping] URI scheme:", "mongodb+srv" if is_srv else "mongodb")
+          print("[Mongo ping] Seed host:", seed_host or "<empty>")
 
-          client = MongoClient(
+          endpoints: list[tuple[str, int]] = []
+          if is_srv and seed_host and dns is not None:
+            try:
+              answers = dns.resolver.resolve(f"_mongodb._tcp.{seed_host}", "SRV")
+              for r in answers:
+                endpoints.append((str(r.target).rstrip("."), int(r.port)))
+              print(f"[Mongo ping] SRV records: {len(endpoints)}")
+            except Exception as exc:
+              print("[Mongo ping] Falha ao resolver SRV:", exc)
+          elif is_srv and dns is None:
+            print("[Mongo ping] dnspython indisponivel para diagnostico SRV detalhado.")
+
+          if endpoints:
+            for host, port in endpoints:
+              tcp_ok, tcp_msg = tcp_probe(host, port)
+              tls_ok, tls_msg = tls_probe(host, port)
+              print(
+                f"[Mongo ping] endpoint={host}:{port} "
+                f"tcp={'ok' if tcp_ok else 'fail'} tls={'ok' if tls_ok else 'fail'}"
+              )
+              if not tcp_ok:
+                print(f"[Mongo ping] tcp_error[{host}:{port}]={tcp_msg}")
+              if not tls_ok:
+                print(f"[Mongo ping] tls_error[{host}:{port}]={tls_msg}")
+
+          try:
+            client = MongoClient(
               uri,
               tlsCAFile=certifi.where(),
               serverSelectionTimeoutMS=30000,
               connectTimeoutMS=30000,
               socketTimeoutMS=30000,
               retryWrites=True,
-          )
-
-          # Round-trip minimo para validar DNS SRV + TLS handshake + auth + acesso ao cluster
-          result = client.admin.command("ping")
-          print("[Mongo ping] Resultado:", result)
-          print("[Mongo ping] Conexao Atlas validada com sucesso.")
+            )
+            # Round-trip minimo para validar DNS SRV + TLS handshake + auth + acesso ao cluster
+            result = client.admin.command("ping")
+            print("[Mongo ping] Resultado:", result)
+            print("[Mongo ping] Conexao Atlas validada com sucesso.")
+          except ServerSelectionTimeoutError as exc:
+            print("[Mongo ping] Falha no server selection:", exc)
+            print("[Mongo ping] Diagnostico sugerido:")
+            print("[Mongo ping] 1) Atlas Network Access deve permitir o egress do runner.")
+            print("[Mongo ping] 2) Cluster nao pode estar em modo private endpoint-only para esse caminho.")
+            print("[Mongo ping] 3) Validar URI e credenciais sem aspas extras no secret.")
+            sys.exit(1)
+          except Exception as exc:
+            print("[Mongo ping] Falha inesperada:", exc)
+            sys.exit(1)
           PY
 
       - name: Run pipeline for each source
