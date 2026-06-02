@@ -1,6 +1,9 @@
-name: Pipeline Runner Manual Diagnostics
+name: Pipeline Runner Daily Self-Hosted
 
 on:
+  schedule:
+    # 13:00 UTC ~= 10:00 Recife/Brasil (sem horario de verao)
+    - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       sources:
@@ -18,7 +21,7 @@ on:
 
 jobs:
   run-pipeline-daily:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout
@@ -169,7 +172,6 @@ jobs:
               socketTimeoutMS=30000,
               retryWrites=True,
             )
-            # Round-trip minimo para validar DNS SRV + TLS handshake + auth + acesso ao cluster
             result = client.admin.command("ping")
             print("[Mongo ping] Resultado:", result)
             print("[Mongo ping] Conexao Atlas validada com sucesso.")
