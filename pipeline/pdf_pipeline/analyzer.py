@@ -71,6 +71,8 @@ Regras importantes:
 
 1. Não invente informações.
 2. Preencha os campos textuais com base no edital.
+3. O campo "titulo" deve conter o nome oficial do edital/chamada.
+4. Se o titulo oficial nao estiver explicito, use uma descricao curta e fiel do objeto do edital.
 3. Os campos "areas_interesse", "segmentos" e "cronograma" devem ser arrays.
 4. Nos campos "areas_interesse" e "segmentos", use SOMENTE valores exatamente iguais aos permitidos abaixo.
 5. Um edital deve possuir OBRIGATORIAMENTE pelo menos uma "area_interesse".
@@ -96,6 +98,7 @@ Responda no formato:
 
 {{
   "url_pdf": "{pdf_url}",
+    "titulo": "",
   "publico_alvo": "",
   "descricao": "",
   "criterios_publico_alvo": [],
@@ -146,6 +149,7 @@ Edital:
 
     # garante schema minimo esperado pelo restante do pipeline
     data.setdefault("url_pdf", pdf_url)
+    data.setdefault("titulo", "")
     data.setdefault("publico_alvo", "")
     data.setdefault("descricao", "")
     data.setdefault("criterios_publico_alvo", [])
@@ -177,6 +181,7 @@ Edital:
     ))
 
     # mantem data como string; conversao para datetime ocorre na orquestracao
+    data["titulo"] = str(data.get("titulo") or "").strip()
     data["data_limit_submissao"] = str(data.get("data_limit_submissao") or "").strip()
 
     return data

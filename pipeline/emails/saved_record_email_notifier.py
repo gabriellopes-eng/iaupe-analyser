@@ -24,6 +24,16 @@ class SavedRecordEmailNotifier:
         # O envio so acontece se houver destinatario configurado.
         return bool(self.test_recipient)
 
+    def resolve_edital_titulo(self, saved_json: dict) -> str:
+        titulo = str(saved_json.get("titulo") or saved_json.get("titulo_edital") or "").strip()
+        if not titulo:
+            titulo = str(saved_json.get("descricao") or "").strip()
+        if not titulo:
+            return "Edital sem titulo identificado"
+        if len(titulo) > 120:
+            return f"{titulo[:117].rstrip()}..."
+        return titulo
+
     def notify_saved_record(
         self,
         *,
@@ -42,9 +52,11 @@ class SavedRecordEmailNotifier:
         if self._use_case is None:
             self._use_case = SendEmailUseCase(SmtpEmailService())
 
+        edital_titulo = self.resolve_edital_titulo(saved_json)
+
         # O assunto resume o evento principal: registro salvo e origem do dado.
         subject = (
-            f"[IAUPE] Registro salvo no MongoDB ({save_status}) - "
+            f"[IAUPE] {edital_titulo} ({save_status}) - "
             f"{source_label} ({source_id})"
         )
 
@@ -78,6 +90,7 @@ class SavedRecordEmailNotifier:
         saved_json: dict,
     ) -> str:
         safe_url = escape(pdf_url)
+        edital_titulo = escape(self.resolve_edital_titulo(saved_json))
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "N/A"))
         descricao = escape(str(saved_json.get("descricao") or "N/A"))
         data_limite = escape(str(saved_json.get("data_limit_submissao") or "N/A"))
@@ -93,7 +106,7 @@ class SavedRecordEmailNotifier:
             "<head>"
             "<meta charset='UTF-8'>"
             "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
-            "<title>Preview - Novo Edital Identificado</title>"
+            "<title>Preview - " + edital_titulo + "</title>"
             "<link href='https://fonts.googleapis.com/css?family=Montserrat:400,600,700&display=swap' rel='stylesheet'>"
             "</head>"
             "<body style=\"margin:0; padding:0; background-color:#dce8f5; font-family:'Montserrat', Arial, sans-serif; color:#1a1a2e;\">"
@@ -104,7 +117,7 @@ class SavedRecordEmailNotifier:
             "<tr><td style='background:linear-gradient(135deg, #1a3a6b 0%, #2a5298 100%); padding:28px 36px 24px;'>"
             "<table width='100%'><tr><td>"
             "<p style='margin:0 0 2px; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:#a8c4e8; font-weight:600;'>Plataforma de Monitoramento de Editais</p>"
-            "<h1 style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:22px; font-weight:600; color:#ffffff;'>Novo Edital Identificado</h1>"
+            "<h1 style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:22px; font-weight:600; color:#ffffff;'>" + edital_titulo + "</h1>"
             "</td><td align='right'><span style='display:inline-block; background:#c0392b; color:#fff; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:5px 14px; border-radius:3px;'>Novo</span></td></tr></table>"
             "</td></tr>"
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #c0392b;'>"
