@@ -1,8 +1,8 @@
-name: Pipeline Runner Daily
+name: IAUPE Analyser - Pipeline Runner (Daily)
 
 on:
   schedule:
-    # 13:00 UTC ~= 10:00 Recife/Brasil (sem horario de verao)
+    # 13:00 UTC ~= 10:00 Recife/Brasil (Sem Horário de Verão)
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
