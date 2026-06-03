@@ -1,11 +1,54 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+from time import sleep
 
 SOURCE_KEY = "capes"
 SOURCE_LABEL = "CAPES"
 BASE_URL = "https://www.gov.br/capes/pt-br/assuntos/editais-e-resultados-capes"
 MONGO_COLLECTION = "editais_capes"
+REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
+REQUEST_TIMEOUT = 30
+REQUEST_ATTEMPTS = 3
+
+
+def build_fallback_urls(url: str) -> list[str]:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+
+    candidates = [url]
+    if host == "www.gov.br":
+        candidates.append(url.replace("https://www.gov.br", "https://gov.br", 1))
+    elif host == "gov.br":
+        candidates.append(url.replace("https://gov.br", "https://www.gov.br", 1))
+
+    # preserva ordem sem duplicidade
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+def get_with_retry(url: str) -> requests.Response:
+    last_exc: requests.RequestException | None = None
+
+    for candidate in build_fallback_urls(url):
+        for attempt in range(1, REQUEST_ATTEMPTS + 1):
+            try:
+                resp = requests.get(candidate, headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
+                resp.raise_for_status()
+                return resp
+            except requests.RequestException as exc:
+                last_exc = exc
+                if attempt < REQUEST_ATTEMPTS:
+                    sleep(attempt)
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Falha inesperada ao requisitar URL")
 
 
 def clean_href(href: str) -> str:
@@ -133,12 +176,9 @@ def collect_links(url_lista: str = BASE_URL) -> list[str]:
     """
     # funcao principal do scraper (entrypoint do pipeline)
     # retorna uma lista de urls de pdf para o pipeline processar
-    headers = {"User-Agent": "Mozilla/5.0"}
-
     # baixa a pagina inicial (ou a pagina informada) e faz parse do html
     try:
-        resp = requests.get(url_lista, headers=headers, timeout=30)
-        resp.raise_for_status()
+        resp = get_with_retry(url_lista)
     except requests.RequestException as exc:
         print(f"Erro ao acessar CAPES: {exc}")
         return []
@@ -156,10 +196,10 @@ def collect_links(url_lista: str = BASE_URL) -> list[str]:
     for page_url in program_pages:
         # entra em cada subpagina e extrai os pdfs
         try:
-            r = requests.get(page_url, headers=headers, timeout=30)
-            r.raise_for_status()
-        except requests.RequestException:
+            r = get_with_retry(page_url)
+        except requests.RequestException as exc:
             # falha em uma subpagina nao derruba o processo; segue a proxima
+            print(f"Falha ao acessar subpagina CAPES: {page_url} | {exc}")
             continue
 
         page_soup = BeautifulSoup(r.text, "lxml")
