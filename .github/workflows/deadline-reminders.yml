@@ -2,14 +2,14 @@ name: Deadline Reminders
 
 on:
   schedule:
-    # 11:00 UTC ~= 08:00 BRT (Sem Horário de Verão)
-    - cron: "0 11 * * *"
+    # 14:00 UTC ~= 11:00 BRT Recife/Brasil
+    - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
       source:
         description: "Fonte para processar (facepe, cnpq, finep, capes)"
         required: false
-        default: "finep"
+        default: "finep,facepe,cnpq,capes"
       reminder_steps:
         description: "Marcos separados por virgula"
         required: false

@@ -2,12 +2,12 @@ name: IAUPE Analyser - Pipeline Runner (Daily)
 
 on:
   schedule:
-    # 13:00 UTC ~= 10:00 Recife/Brasil (Sem Horário de Verão)
+    # 13:00 UTC ~= 10:00 BRT Recife/Brasil
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       sources:
-        description: "Fontes separadas por virgula (finep,facepe,cnpq,capes)"
+        description: "Fonte para processar (facepe, cnpq, finep, capes)"
         required: false
         default: "finep,facepe,cnpq,capes"
       limit_per_source:
