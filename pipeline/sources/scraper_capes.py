@@ -2,6 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from time import sleep
+from datetime import datetime, timezone
+import os
 
 SOURCE_KEY = "capes"
 SOURCE_LABEL = "CAPES"
@@ -10,6 +12,19 @@ MONGO_COLLECTION = "editais_capes"
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
 REQUEST_TIMEOUT = 30
 REQUEST_ATTEMPTS = 3
+
+
+def resolve_target_year() -> int:
+    raw = (os.getenv("CAPES_TARGET_YEAR") or "").strip()
+    if raw.isdigit() and len(raw) == 4:
+        return int(raw)
+    return datetime.now(timezone.utc).year
+
+
+def is_target_year_link(url: str, anchor_text: str, target_year: int) -> bool:
+    year = str(target_year)
+    haystack = f"{url} {anchor_text}".lower()
+    return year in haystack
 
 
 def build_fallback_urls(url: str) -> list[str]:
@@ -129,6 +144,8 @@ def collect_pdf_links_from_program_page(page_url: str, soup: BeautifulSoup) -> l
     links: list[str] = []
     vistos: set[str] = set()
 
+    target_year = resolve_target_year()
+
     # tentativa 1: achar a tabela "listing" apos o heading "editais"
     heading = find_heading(soup, "Editais")
     table = None
@@ -155,9 +172,14 @@ def collect_pdf_links_from_program_page(page_url: str, soup: BeautifulSoup) -> l
         # resolve para url absoluta e normaliza
         full = urljoin(page_url, href)
         full = clean_href(full)
+        anchor_text = a.get_text(" ", strip=True)
 
         # filtra para manter somente pdf
         if not is_pdf_url(full):
+            continue
+
+        # mantem somente editais do ano-alvo (dinamico por execucao)
+        if not is_target_year_link(full, anchor_text, target_year):
             continue
 
         if full not in vistos:

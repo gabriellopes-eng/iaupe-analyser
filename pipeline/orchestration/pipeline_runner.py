@@ -47,6 +47,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         if not links:
             print(f"Nenhum PDF encontrado para a fonte {source['label']}.")
             return
+        # aplica filtro para limitar quantidade de documentos processados por execucao, priorizando os mais recentes
 
         pending_links: list[str] = []
         for link in links:
