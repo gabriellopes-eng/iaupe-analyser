@@ -42,6 +42,9 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -53,6 +56,9 @@ jobs:
           REQUIRED_VARS=(
             MONGODB_URI
             MONGODB_DB
+            ATLAS_PUBLIC_KEY
+            ATLAS_PRIVATE_KEY
+            ATLAS_PROJECT_ID
             GEMINI_API_KEY
             RECIPIENT_EMAIL
             SMTP_HOST
@@ -76,6 +82,48 @@ jobs:
           fi
 
           echo "Configuracoes obrigatorias encontradas."
+
+      - name: Allowlist runner IP in Atlas
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          RUNNER_IP="$(curl -fsSL https://api.ipify.org)"
+          echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
+
+          DELETE_AFTER="$(date -u -d '+2 hours' +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Liberando IP do runner no Atlas: $RUNNER_IP"
+
+          HTTP_CODE="$(curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request POST \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" \
+            --header "Content-Type: application/json" \
+            --data "[
+              {
+                \"ipAddress\": \"$RUNNER_IP\",
+                \"comment\": \"GitHub Actions run $GITHUB_RUN_ID\",
+                \"deleteAfterDate\": \"$DELETE_AFTER\"
+              }
+            ]" \
+            --output /tmp/atlas_add_ip_response.json \
+            --write-out '%{http_code}')"
+
+          cat /tmp/atlas_add_ip_response.json
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ] && [ "$HTTP_CODE" != "409" ]; then
+            echo "Falha ao adicionar IP no Atlas. HTTP: $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Wait Atlas access list propagation
+        run: |
+          echo "Aguardando propagacao da regra de IP no Atlas..."
+          sleep 60
 
       - name: MongoDB connectivity diagnostics (ping)
         env:
@@ -257,3 +305,25 @@ jobs:
           else
             echo "Execucao concluida com sucesso em todas as sources."
           fi
+
+      - name: Remove runner IP from Atlas
+        if: always()
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUNNER_IP:-}" ]; then
+            echo "RUNNER_IP vazio, nada para remover."
+            exit 0
+          fi
+
+          echo "Removendo IP do runner no Atlas: $RUNNER_IP"
+
+          curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request DELETE \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList/$RUNNER_IP" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" || true

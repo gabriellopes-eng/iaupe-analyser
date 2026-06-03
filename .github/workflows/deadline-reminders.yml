@@ -33,6 +33,91 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Validate required configuration
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        run: |
+          REQUIRED_VARS=(
+            MONGODB_URI
+            MONGODB_DB
+            ATLAS_PUBLIC_KEY
+            ATLAS_PRIVATE_KEY
+            ATLAS_PROJECT_ID
+            RECIPIENT_EMAIL
+            SMTP_HOST
+            SMTP_PORT
+            SMTP_USER
+            SMTP_PASS
+            SENDER_EMAIL
+          )
+
+          MISSING=0
+          for VAR_NAME in "${REQUIRED_VARS[@]}"; do
+            if [ -z "${!VAR_NAME}" ]; then
+              echo "Configuracao ausente: $VAR_NAME"
+              MISSING=1
+            fi
+          done
+
+          if [ "$MISSING" -ne 0 ]; then
+            echo "Falha de configuracao: defina os secrets obrigatorios no repositorio."
+            exit 1
+          fi
+
+          echo "Configuracoes obrigatorias encontradas."
+
+      - name: Allowlist runner IP in Atlas
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          RUNNER_IP="$(curl -fsSL https://api.ipify.org)"
+          echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
+
+          DELETE_AFTER="$(date -u -d '+2 hours' +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Liberando IP do runner no Atlas: $RUNNER_IP"
+
+          HTTP_CODE="$(curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request POST \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" \
+            --header "Content-Type: application/json" \
+            --data "[
+              {
+                \"ipAddress\": \"$RUNNER_IP\",
+                \"comment\": \"GitHub Actions run $GITHUB_RUN_ID\",
+                \"deleteAfterDate\": \"$DELETE_AFTER\"
+              }
+            ]" \
+            --output /tmp/atlas_add_ip_response.json \
+            --write-out '%{http_code}')"
+
+          cat /tmp/atlas_add_ip_response.json
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ] && [ "$HTTP_CODE" != "409" ]; then
+            echo "Falha ao adicionar IP no Atlas. HTTP: $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Wait Atlas access list propagation
+        run: |
+          echo "Aguardando propagacao da regra de IP no Atlas..."
+          sleep 60
+
       - name: Run deadline reminders
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
@@ -49,3 +134,25 @@ jobs:
         run: |
           cd pipeline
           python main.py --source "$PIPELINE_SOURCE" --run-reminders --reminder-steps "$DEADLINE_REMINDER_STEPS"
+
+      - name: Remove runner IP from Atlas
+        if: always()
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUNNER_IP:-}" ]; then
+            echo "RUNNER_IP vazio, nada para remover."
+            exit 0
+          fi
+
+          echo "Removendo IP do runner no Atlas: $RUNNER_IP"
+
+          curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request DELETE \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList/$RUNNER_IP" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" || true
