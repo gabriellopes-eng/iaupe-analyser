@@ -35,7 +35,7 @@ class SmtpEmailService:
             raise ValueError("Defina SMTP_PASS no .env")
 
     def send(self, email: Email) -> None:
-        """Envia email de texto ou HTML para um destinatario."""
+        """Envia um unico email com destinatarios em copia (Cc)."""
         # Se houver HTML, a notificacao vai formatada; caso contrario, cai para texto puro.
         body_text = (email.text or "").strip()
         body_html = (email.html or "").strip()
@@ -45,10 +45,19 @@ class SmtpEmailService:
         if not body:
             raise ValueError("Informe text ou html para envio")
 
+        # O campo email.to aceita lista separada por virgula.
+        cc_recipients = [part.strip() for part in email.to.split(",") if part.strip()]
+        if not cc_recipients:
+            raise ValueError("Informe ao menos um destinatario valido em Email.to")
+
+        # Mantemos um unico destinatario no To e todos os alvos reais em Cc.
+        to_header = self.default_from
+
         # Monta a mensagem SMTP com headers minimos e o corpo final.
         message = "\r\n".join([
             f"From: {self.default_from}",
-            f"To: {email.to}",
+            f"To: {to_header}",
+            f"Cc: {', '.join(cc_recipients)}",
             f"Subject: {email.subject}",
             "MIME-Version: 1.0",
             f"Content-Type: {content_type}; charset=utf-8",
@@ -63,4 +72,4 @@ class SmtpEmailService:
             smtp.starttls()
             smtp.ehlo()
             smtp.login(self.user, self.password)
-            smtp.sendmail(self.default_from, [email.to], message.encode("utf-8"))
+            smtp.sendmail(self.default_from, cc_recipients, message.encode("utf-8"))

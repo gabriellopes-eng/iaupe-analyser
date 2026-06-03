@@ -141,7 +141,9 @@ Observacoes:
 - A collection no Mongo e definida pela fonte selecionada.
 - `MONGODB_COLLECTION` funciona como fallback interno quando nenhuma collection e informada na chamada.
 - Para desativar persistencia mesmo com URI definida, use `MONGODB_ENABLED=0`.
-- O remetente do e-mail é definido por `SENDER_EMAIL` e o destinatário por `RECIPIENT_EMAIL`.
+- O remetente do e-mail e definido por `SENDER_EMAIL`.
+- `RECIPIENT_EMAIL` aceita um ou varios emails separados por virgula.
+- Quando houver varios destinatarios, o sistema envia um email unico com todos em copia (Cc).
 
 ## Execucao da Pipeline
 
@@ -194,6 +196,22 @@ Automacao no GitHub Actions:
 
 - Workflow: `.github/workflows/deadline-reminders.yml`
 - Agendado diariamente e com suporte a disparo manual (`workflow_dispatch`).
+
+Destinatarios em copia (email unico):
+
+- Local (`.env`):
+
+```env
+RECIPIENT_EMAIL=gabriel.lopes.albuquerque@gmail.com,augusto.oliveira@upe.br
+```
+
+- GitHub Actions (`Settings > Secrets and variables > Actions`):
+
+```text
+RECIPIENT_EMAIL=gabriel.lopes.albuquerque@gmail.com,augusto.oliveira@upe.br
+```
+
+- Regra de envio: para cada notificacao, e disparado apenas um email e todos os destinatarios ficam no campo `Cc`.
 
 ## Tratamento de Erros
 
