@@ -1,12 +1,28 @@
 import requests
+import re
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, unquote, urljoin, urlparse
 
 SOURCE_KEY = "cnpq"
 SOURCE_LABEL = "CNPq"
 BASE_URL = "http://memoria2.cnpq.br/web/guest/chamadas-publicas"
 MONGO_COLLECTION = "editais_cnpq"
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
+URL_REGEX = re.compile(r"https?://[^\s'\"<>]+", re.IGNORECASE)
+
+
+def normalize_url(url: str) -> str:
+    parsed = urlparse((url or "").strip())
+    if not parsed.scheme or not parsed.netloc:
+        return (url or "").strip()
+
+    normalized_path = parsed.path
+    if parsed.query and normalized_path.endswith("/") and len(normalized_path) > 1:
+        normalized_path = normalized_path.rstrip("/")
+
+    normalized_query = re.sub(r"(idDivulgacao=\d+)/", r"\1", parsed.query or "")
+    normalized = parsed._replace(path=normalized_path, query=normalized_query).geturl()
+    return normalized
 
 
 def is_cnpq_domain(url: str) -> bool:
@@ -64,6 +80,43 @@ def extract_pdf_links_from_detail(detail_url: str) -> list[str]:
     return pdf_links
 
 
+def extract_embedded_urls(value: str) -> list[str]:
+    decoded = value or ""
+    # URLs da chamada podem vir codificadas mais de uma vez em parametros de share.
+    for _ in range(2):
+        decoded = unquote(decoded)
+
+    urls: list[str] = []
+    for match in URL_REGEX.findall(decoded):
+        cleaned = match.rstrip(".,;)")
+        if cleaned:
+            urls.append(cleaned)
+    return urls
+
+
+def expand_href_candidates(url_lista: str, href: str) -> list[str]:
+    full_href = normalize_url(urljoin(url_lista, href))
+    candidates: list[str] = [full_href]
+
+    parsed = urlparse(full_href)
+    for _, value in parse_qsl(parsed.query or "", keep_blank_values=True):
+        for embedded in extract_embedded_urls(value):
+            candidates.append(normalize_url(embedded))
+
+    if parsed.scheme.lower() == "mailto":
+        for embedded in extract_embedded_urls(full_href):
+            candidates.append(normalize_url(embedded))
+
+    # preserva ordem de descoberta e remove duplicados
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for item in candidates:
+        if item not in seen:
+            seen.add(item)
+            deduped.append(item)
+    return deduped
+
+
 def collect_links(url_lista: str = BASE_URL) -> list[str]:
     """Coleta links de chamadas publicas a partir da pagina do CNPq."""
     try:
@@ -96,19 +149,19 @@ def collect_links(url_lista: str = BASE_URL) -> list[str]:
         if not href:
             continue
 
-        full_href = urljoin(url_lista, href)
-        if not is_cnpq_domain(full_href):
-            continue
+        for candidate in expand_href_candidates(url_lista, href):
+            if not is_cnpq_domain(candidate):
+                continue
 
-        if is_pdf_url(full_href):
-            if full_href not in vistos:
-                vistos.add(full_href)
-                links.append(full_href)
-            continue
+            if is_pdf_url(candidate):
+                if candidate not in vistos:
+                    vistos.add(candidate)
+                    links.append(candidate)
+                continue
 
-        if is_detail_page(full_href) and full_href not in detail_seen:
-            detail_seen.add(full_href)
-            detail_pages.append(full_href)
+            if is_detail_page(candidate) and candidate not in detail_seen:
+                detail_seen.add(candidate)
+                detail_pages.append(candidate)
 
     for detail_url in detail_pages:
         for pdf_link in extract_pdf_links_from_detail(detail_url):
