@@ -56,7 +56,7 @@ class SavedRecordEmailNotifier:
 
         # O assunto resume o evento principal: registro salvo e origem do dado.
         subject = (
-            f"{edital_titulo} ({save_status}) - "
+            f"{edital_titulo} - "
             f"{source_label} ({source_id})"
         )
 
@@ -91,8 +91,6 @@ class SavedRecordEmailNotifier:
     ) -> str:
         safe_url = escape(pdf_url)
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
-        safe_collection_name = escape(collection_name)
-        safe_save_status = escape(save_status)
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "N/A"))
         descricao = escape(str(saved_json.get("descricao") or "N/A"))
         data_limite = escape(str(saved_json.get("data_limit_submissao") or "N/A"))
@@ -124,12 +122,6 @@ class SavedRecordEmailNotifier:
             + "</td></tr>"
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #c0392b;'>"
             "<table width='100%'><tr><td><span style='font-size:13px; color:#a8c4e8;'>Instituição: </span><span style='font-size:14px; font-weight:700; color:#fff;'>" + escape(source_label) + "</span></td><td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: " + escape(source_id) + "</span></td></tr></table>"
-            "</td></tr>"
-            "<tr><td style='background:#f2f7ff; padding:10px 36px; border-bottom:1px solid #dce8f5;'>"
-            "<table width='100%'><tr>"
-            "<td><span style='font-size:11px; color:#4a5568; text-transform:uppercase; letter-spacing:1px;'>Status:</span> <span style='font-size:12px; font-weight:700; color:#1a3a6b;'>" + safe_save_status + "</span></td>"
-            "<td align='right'><span style='font-size:11px; color:#4a5568; text-transform:uppercase; letter-spacing:1px;'>Collection:</span> <span style='font-size:12px; font-weight:700; color:#1a3a6b;'>" + safe_collection_name + "</span></td>"
-            "</tr></table>"
             "</td></tr>"
             "<tr><td style='background:#ffffff; padding:0;'>"
             "<table width='100%' style='border-bottom:1px solid #dce8f5;'><tr>"
