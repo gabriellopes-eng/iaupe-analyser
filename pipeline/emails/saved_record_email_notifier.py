@@ -56,7 +56,7 @@ class SavedRecordEmailNotifier:
 
         # O assunto resume o evento principal: registro salvo e origem do dado.
         subject = (
-            f"[IAUPE] {edital_titulo} ({save_status}) - "
+            f"{edital_titulo} ({save_status}) - "
             f"{source_label} ({source_id})"
         )
 
