@@ -48,8 +48,31 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
             print(f"Nenhum PDF encontrado para a fonte {source['label']}.")
             return
 
-        links = links if limit is None else links[:limit]
+        pending_links: list[str] = []
+        for link in links:
+            if already_exists(link, collection_name=source["mongo_collection"]):
+                already_saved_total += 1
+                continue
+
+            pending_links.append(link)
+            if limit is not None and len(pending_links) >= limit:
+                break
+
+        links = pending_links
         selected_total = len(links)
+
+        if not links:
+            print(
+                f"Fonte: {source['label']} ({source_id}) | "
+                f"Collection Mongo: {source['mongo_collection']}"
+            )
+            print(
+                f"Encontrados: {found_total} | "
+                f"Pendentes selecionados pelo limite: {selected_total} | "
+                f"Ja salvos ignorados: {already_saved_total}"
+            )
+            print("Nenhum novo PDF pendente para processar.")
+            return
 
         print(
             f"Fonte: {source['label']} ({source_id}) | "
@@ -57,7 +80,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         )
         print(
             f"Encontrados: {found_total} | "
-            f"Selecionados pelo limite: {selected_total} | "
+            f"Pendentes selecionados pelo limite: {selected_total} | "
+            f"Ja salvos ignorados: {already_saved_total} | "
             f"Email habilitado: {'sim' if email_enabled else 'nao'}"
         )
         print(f"{selected_total} PDFs para processar.\n")
