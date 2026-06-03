@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import base64
 import os
 from datetime import datetime
 from html import escape
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -28,16 +26,6 @@ class DeadlineReminderEmailNotifier:
         if not titulo:
             titulo = str(saved_json.get("descricao") or "").strip()
         return titulo or "Edital sem titulo identificado"
-
-    def resolve_logo_data_uri(self) -> str:
-        logo_path = Path(__file__).resolve().parents[2] / "assets" / "logo.png"
-        if not logo_path.exists():
-            return ""
-        try:
-            encoded = base64.b64encode(logo_path.read_bytes()).decode("ascii")
-            return f"data:image/png;base64,{encoded}"
-        except OSError:
-            return ""
 
     def notify_deadline(
         self,
@@ -87,7 +75,6 @@ class DeadlineReminderEmailNotifier:
         days_left: int,
     ) -> str:
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
-        logo_src = self.resolve_logo_data_uri()
         descricao = escape(str(saved_json.get("descricao") or "Nao informado"))
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "Nao informado"))
         data_limite = escape(deadline.date().isoformat())
@@ -112,7 +99,6 @@ class DeadlineReminderEmailNotifier:
             "<p style='margin:0 0 2px; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:#a8c4e8; font-weight:600;'>Plataforma de Monitoramento de Editais</p>"
             f"<h1 style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:22px; font-weight:600; color:#fff; line-height:1.3;'>{edital_titulo}</h1>"
             "</td>"
-            f"<td align='right' valign='middle' style='padding-left:20px; min-width:140px;'><img src='{logo_src}' alt='IAUPE' height='48' style='display:block; filter:brightness(0) invert(1);'></td>"
             "</tr></table>"
             "</td></tr>"
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #e67e22;'>"

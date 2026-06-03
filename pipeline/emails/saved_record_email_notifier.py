@@ -91,23 +91,6 @@ class SavedRecordEmailNotifier:
     ) -> str:
         safe_url = escape(pdf_url)
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
-        logo_src = escape(
-            str(
-                saved_json.get("logo_src")
-                or os.getenv("EMAIL_LOGO_URL")
-                or os.getenv("LOGO_URL")
-                or ""
-            ).strip()
-        )
-        logo_header_html = (
-            "</td><td align='right' valign='middle' style='padding-left:20px; min-width:140px;'>"
-            "<img src='" + logo_src + "' alt='IAUPE' height='48' style='display:block; filter:brightness(0) invert(1);'>"
-            "</td></tr></table>"
-        )
-        if not logo_src:
-            logo_header_html = (
-                "</td><td align='right'><span style='display:inline-block; background:#c0392b; color:#fff; font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:5px 14px; border-radius:3px;'>Novo</span></td></tr></table>"
-            )
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "N/A"))
         descricao = escape(str(saved_json.get("descricao") or "N/A"))
         data_limite = escape(str(saved_json.get("data_limit_submissao") or "N/A"))
@@ -135,7 +118,7 @@ class SavedRecordEmailNotifier:
             "<table width='100%'><tr><td>"
             "<p style='margin:0 0 2px; font-size:10px; letter-spacing:3px; text-transform:uppercase; color:#a8c4e8; font-weight:600;'>Plataforma de Monitoramento de Editais</p>"
             "<h1 style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:22px; font-weight:600; color:#ffffff;'>" + edital_titulo + "</h1>"
-            + logo_header_html
+            "</td></tr></table>"
             + "</td></tr>"
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #c0392b;'>"
             "<table width='100%'><tr><td><span style='font-size:13px; color:#a8c4e8;'>Instituição: </span><span style='font-size:14px; font-weight:700; color:#fff;'>" + escape(source_label) + "</span></td><td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: " + escape(source_id) + "</span></td></tr></table>"
