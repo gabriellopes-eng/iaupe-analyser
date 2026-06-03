@@ -91,6 +91,8 @@ class SavedRecordEmailNotifier:
     ) -> str:
         safe_url = escape(pdf_url)
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
+        safe_collection_name = escape(collection_name)
+        safe_save_status = escape(save_status)
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "N/A"))
         descricao = escape(str(saved_json.get("descricao") or "N/A"))
         data_limite = escape(str(saved_json.get("data_limit_submissao") or "N/A"))
@@ -123,6 +125,12 @@ class SavedRecordEmailNotifier:
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #c0392b;'>"
             "<table width='100%'><tr><td><span style='font-size:13px; color:#a8c4e8;'>Instituição: </span><span style='font-size:14px; font-weight:700; color:#fff;'>" + escape(source_label) + "</span></td><td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: " + escape(source_id) + "</span></td></tr></table>"
             "</td></tr>"
+            "<tr><td style='background:#f2f7ff; padding:10px 36px; border-bottom:1px solid #dce8f5;'>"
+            "<table width='100%'><tr>"
+            "<td><span style='font-size:11px; color:#4a5568; text-transform:uppercase; letter-spacing:1px;'>Status:</span> <span style='font-size:12px; font-weight:700; color:#1a3a6b;'>" + safe_save_status + "</span></td>"
+            "<td align='right'><span style='font-size:11px; color:#4a5568; text-transform:uppercase; letter-spacing:1px;'>Collection:</span> <span style='font-size:12px; font-weight:700; color:#1a3a6b;'>" + safe_collection_name + "</span></td>"
+            "</tr></table>"
+            "</td></tr>"
             "<tr><td style='background:#ffffff; padding:0;'>"
             "<table width='100%' style='border-bottom:1px solid #dce8f5;'><tr>"
             "<td style='width:50%; padding:24px 36px 20px; border-right:1px solid #dce8f5;'><p style='margin:0 0 4px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#7a90aa; font-weight:600;'>Prazo final de submissão</p><p style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:22px; font-weight:600; color:#c0392b;'>" + data_limite + "</p></td>"
@@ -131,8 +139,10 @@ class SavedRecordEmailNotifier:
             "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Público-alvo</p><p style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:15px; line-height:1.75; color:#2d3748;'>" + publico_alvo + "</p></div>"
             "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Resumo do Edital</p><p style='margin:0; font-family:Montserrat,Arial,sans-serif; font-size:15px; line-height:1.75; color:#2d3748;'>" + descricao + "</p></div>"
             "<div style='padding:0 36px; border-bottom:1px solid #eaf1fb;'><table width='100%'><tr valign='top'><td style='width:50%; padding:20px 16px 20px 0; border-right:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Áreas de interesse</p>" + areas_interesse + "</td><td style='width:50%; padding:20px 0 20px 16px;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Segmentos</p>" + segmentos + "</td></tr></table></div>"
+            "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Critérios do público-alvo</p>" + criterios_publico + "</div>"
             "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Quem pode submeter</p>" + criterios_proponente + "</div>"
             "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Cronograma</p>" + cronograma + "</div>"
+            "<div style='padding:20px 36px; border-bottom:1px solid #eaf1fb;'><p style='margin:0 0 10px; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:#2a5298; font-weight:700;'>Observações</p>" + observacoes + "</div>"
             "</td></tr>"
             "<tr><td style='background:#eaf1fb; padding:28px 36px; text-align:center; border-top:2px solid #2a5298;'><a href='" + safe_url + "' style='display:inline-block; background:#2a5298; color:#fff; font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; text-decoration:none; padding:13px 40px; border-radius:3px;'>Acessar Edital Completo</a></td></tr>"
             "<tr><td style='background:#1a3a6b; border-radius:0 0 8px 8px; padding:20px 36px; text-align:center;'><p style='margin:0; font-size:11px; color:#7a9cc8; line-height:1.7;'>Este e-mail foi gerado automaticamente pela plataforma de monitoramento de editais.<br>Você está recebendo esta mensagem porque está cadastrado para receber alertas de oportunidades.</p></td></tr>"
