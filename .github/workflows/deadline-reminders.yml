@@ -6,8 +6,8 @@ on:
     - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
-      source:
-        description: "Fonte para processar (facepe, cnpq, finep, capes)"
+      sources:
+        description: "Fontes separadas por virgula (finep,facepe,cnpq,capes)"
         required: false
         default: "finep,facepe,cnpq,capes"
       reminder_steps:
@@ -129,11 +129,37 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
-          PIPELINE_SOURCE: ${{ github.event.inputs.source || 'finep' }}
+          PIPELINE_SOURCES: ${{ github.event.inputs.sources || 'finep,facepe,cnpq,capes' }}
           DEADLINE_REMINDER_STEPS: ${{ github.event.inputs.reminder_steps || '30,15,7' }}
         run: |
           cd pipeline
-          python main.py --source "$PIPELINE_SOURCE" --run-reminders --reminder-steps "$DEADLINE_REMINDER_STEPS"
+          IFS=',' read -ra SOURCES <<< "$PIPELINE_SOURCES"
+          OVERALL_ERRORS=0
+
+          echo "Execucao de lembretes"
+          echo "Sources configuradas: $PIPELINE_SOURCES"
+          echo "Marcos: $DEADLINE_REMINDER_STEPS"
+
+          for RAW_SOURCE in "${SOURCES[@]}"; do
+            SOURCE="$(echo "$RAW_SOURCE" | xargs)"
+            if [ -z "$SOURCE" ]; then
+              continue
+            fi
+
+            echo "::group::Lembretes source: $SOURCE"
+            if python main.py --source "$SOURCE" --run-reminders --reminder-steps "$DEADLINE_REMINDER_STEPS"; then
+              echo "Lembretes da source $SOURCE finalizados com sucesso."
+            else
+              OVERALL_ERRORS=1
+              echo "Falha nos lembretes da source $SOURCE. Continuando para a proxima."
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ "$OVERALL_ERRORS" -ne 0 ]; then
+            echo "Execucao de lembretes concluida com falhas em algumas sources."
+            exit 1
+          fi
 
       - name: Remove runner IP from Atlas
         if: always()
