@@ -13,7 +13,11 @@ REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
 REQUEST_TIMEOUT = 30
 REQUEST_ATTEMPTS = 3
 
+#Lembrete
 
+# Observação: a CAPES tem um layout relativamente consistente, mas pode mudar sem aviso.
+# O scraper é projetado para ser resiliente a mudanças menores, mas mudanças maiores podem exigir ajustes no código.
+# Temos agora uma filtragem mais robusta para garantir que estamos pegando os editais do ano correto, mesmo que o site mude um pouco o layout ou a forma de apresentar os links. A ideia é buscar pistas tanto na URL quanto no texto âncora para identificar se o link é relevante para o ano-alvo.
 def resolve_target_year() -> int:
     raw = (os.getenv("CAPES_TARGET_YEAR") or "").strip()
     if raw.isdigit() and len(raw) == 4:
