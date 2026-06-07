@@ -1,14 +1,20 @@
 import requests
 import re
 from bs4 import BeautifulSoup
+from datetime import datetime
 from urllib.parse import parse_qsl, unquote, urljoin, urlparse
 
 SOURCE_KEY = "cnpq"
 SOURCE_LABEL = "CNPq"
-BASE_URL = "http://memoria2.cnpq.br/web/guest/chamadas-publicas"
+BASE_URL = (
+    "http://memoria2.cnpq.br/web/guest/chamadas-publicas"
+    "?p_p_id=resultadosportlet_WAR_resultadoscnpqportlet_INSTANCE_0ZaM"
+    "&filtro=abertas"
+)
 MONGO_COLLECTION = "editais_cnpq"
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
 URL_REGEX = re.compile(r"https?://[^\s'\"<>]+", re.IGNORECASE)
+DATE_REGEX = re.compile(r"\b(\d{2}/\d{2}/\d{4})\b")
 
 
 def normalize_url(url: str) -> str:
@@ -50,6 +56,61 @@ def is_detail_page(url: str) -> bool:
         "memoria2.cnpq.br" in (parsed.netloc or "").lower()
         and ("iddisvulgacao=" in query or "iddivulgacao=" in query or "detalha=chamadadivulgada" in query)
     )
+
+
+def parse_ptbr_date(value: str) -> datetime | None:
+    try:
+        return datetime.strptime(value, "%d/%m/%Y")
+    except ValueError:
+        return None
+
+
+def extract_inscription_start_date(item) -> datetime | None:
+    inscricao = item.select_one(".inscricao")
+    if inscricao is None:
+        return None
+
+    match = DATE_REGEX.search(inscricao.get_text(" ", strip=True))
+    if not match:
+        return None
+
+    return parse_ptbr_date(match.group(1))
+
+
+def extract_permanent_link(item, page_url: str) -> str:
+    permanent_input = item.select_one(".link-permanente input[value]")
+    if permanent_input is not None:
+        value = str(permanent_input.get("value") or "").strip()
+        if value:
+            return normalize_url(urljoin(page_url, value))
+
+    for anchor in item.select("a[href]"):
+        href = str(anchor.get("href") or "").strip()
+        for candidate in expand_href_candidates(page_url, href):
+            if is_detail_page(candidate):
+                return candidate
+
+    return ""
+
+
+def collect_sorted_detail_pages(soup: BeautifulSoup, page_url: str) -> list[str]:
+    calls: list[tuple[datetime | None, int, str]] = []
+    seen: set[str] = set()
+
+    for index, item in enumerate(soup.select("ol.list-chamadas > li")):
+        detail_url = extract_permanent_link(item, page_url)
+        if not detail_url or detail_url in seen:
+            continue
+
+        seen.add(detail_url)
+        calls.append((extract_inscription_start_date(item), index, detail_url))
+
+    # Prioriza chamadas com data conhecida, da inscricao mais recente para a mais antiga.
+    calls.sort(
+        key=lambda row: (row[0] is not None, row[0] or datetime.min, -row[1]),
+        reverse=True,
+    )
+    return [detail_url for _, _, detail_url in calls]
 
 
 def extract_pdf_links_from_detail(detail_url: str) -> list[str]:
@@ -134,8 +195,8 @@ def collect_links(url_lista: str = BASE_URL) -> list[str]:
 
     links: list[str] = []
     vistos: set[str] = set()
-    detail_pages: list[str] = []
-    detail_seen: set[str] = set()
+    detail_pages: list[str] = collect_sorted_detail_pages(soup, url_lista)
+    detail_seen: set[str] = set(detail_pages)
 
     # seletor principal da estrutura atual do site
     anchors = soup.select("div.links-normas.pull-left a.btn[href]")
