@@ -5,11 +5,12 @@
 O IAUPE Analyzer e um pipeline Python para:
 
 1. Coletar links de editais por fonte.
-2. Extrair texto dos documentos PDF.
+2. Extrair texto dos documentos PDF ou paginas HTML.
 3. Analisar conteudo com IA (Gemini).
 4. Salvar resultados estruturados no MongoDB.
+5. Enviar notificacoes por email para editais novos e lembretes de prazo.
 
-O pipeline de producao esta organizado em modulos por responsabilidade, com orquestracao central e componentes desacoplados.
+O pipeline de producao esta organizado em modulos por responsabilidade, com orquestracao central e fontes plugaveis.
 
 ## Fontes Suportadas
 
@@ -27,54 +28,79 @@ Fluxo principal:
 ```text
 Fonte selecionada (--source)
 -> collect_links (scraper da fonte)
--> extractor (texto do PDF)
--> analyzer (JSON estruturado)
+-> extractor (texto do PDF/HTML)
+-> analyzer (JSON estruturado via Gemini)
 -> save (MongoDB na collection da fonte)
+-> email (quando o registro e novo e valido)
 ```
 
 Estrutura de producao:
 
 ```text
 pipeline/
-├── main.py                      # entrypoint da CLI
-├── orchestration/
-│   ├── pipeline_runner.py       # fluxo completo da pipeline
-│   ├── deadline_reminder_runner.py # fluxo de lembretes (D-30, D-15, D-7)
-│   ├── source_registry.py       # registro e resolucao de fontes
-│   ├── settings.py              # configs de execucao (env/limites/sleeps)
-│   ├── retry_policy.py          # retry de erros temporarios do Gemini
-│   └── date_parser.py           # parse da data_limit_submissao
-├── sources/
-│   ├── scraper_facepe.py
-│   ├── scraper_cnpq.py
-│   ├── finep/
-│   │   ├── __init__.py
-│   │   ├── constants.py
-│   │   ├── client.py
-│   │   └── scraper.py
-│   └── scraper_capes.py
-├── pdf_pipeline/
-│   ├── extractor.py             # extracao de texto de PDF
-│   └── analyzer.py              # analise via Gemini
-├── db/
-│   └── mongo.py                 # persistencia e cache de conexao MongoDB
-└── emails/
-   ├── email.py
-   ├── emails_service.py
-   ├── smtp_email_service.py
-   ├── send_email_use_case.py
-   ├── saved_record_email_notifier.py
-   └── deadline_reminder_email_notifier.py
+|-- main.py                         # entrypoint da CLI
+|-- orchestration/
+|   |-- pipeline_runner.py           # fluxo completo da pipeline
+|   |-- deadline_reminder_runner.py  # fluxo de lembretes (D-30, D-15, D-7)
+|   |-- source_registry.py           # registro e resolucao de fontes
+|   |-- settings.py                  # configs de execucao (env/limites/sleeps)
+|   |-- retry_policy.py              # retry de erros temporarios do Gemini
+|   `-- date_parser.py               # parse da data_limit_submissao
+|-- sources/
+|   |-- facepe/                      # scraper modularizado da FACEPE
+|   |-- cnpq/                        # scraper modularizado do CNPq
+|   |-- finep/                       # scraper modularizado da FINEP
+|   |-- capes/                       # scraper modularizado da CAPES
+|   |-- scraper_facepe.py            # wrapper de compatibilidade
+|   |-- scraper_cnpq.py              # wrapper de compatibilidade
+|   `-- scraper_capes.py             # wrapper de compatibilidade
+|-- pdf_pipeline/
+|   |-- extractor.py                 # extracao de texto de PDF/HTML
+|   `-- analyzer.py                  # analise via Gemini
+|-- db/
+|   `-- mongo.py                     # persistencia e cache de conexao MongoDB
+`-- emails/
+    |-- email.py
+    |-- emails_service.py
+    |-- smtp_email_service.py
+    |-- send_email_use_case.py
+    |-- saved_record_email_notifier.py
+    `-- deadline_reminder_email_notifier.py
 ```
 
-## Estrutura da FINEP (Atualizada)
+## Fontes Modularizadas
 
-A fonte FINEP foi modularizada em pacote proprio para facilitar manutencao e testes.
+As fontes principais ficam em pacotes dentro de `pipeline/sources/`. Cada pacote expoe uma API publica pelo `__init__.py`, usada pelo `source_registry`.
 
-- `pipeline/sources/finep/constants.py`: constantes da fonte (rotas, collection, credenciais publicas de client).
-- `pipeline/sources/finep/client.py`: comunicacao HTTP com endpoints da FINEP (token, chamadas e documentos).
-- `pipeline/sources/finep/scraper.py`: regra de coleta e filtro dos PDFs prioritarios.
-- `pipeline/sources/finep/__init__.py`: API publica do pacote para uso no `source_registry`.
+Estrutura padrao dos pacotes:
+
+- `constants.py`: chave da fonte, label, URL base, collection Mongo e constantes de coleta.
+- `client.py`: comunicacao HTTP/API da fonte.
+- `models.py`: objetos internos usados para ordenar e filtrar documentos.
+- `parser.py`: leitura do HTML/API e transformacao em objetos estruturados.
+- `policy.py`: regras de negocio da fonte, como ano-alvo e filtro de edital principal.
+- `scraper.py`: orquestracao final e funcao `collect_links()`.
+- `__init__.py`: API publica do pacote.
+
+Os arquivos `scraper_facepe.py`, `scraper_cnpq.py` e `scraper_capes.py` existem apenas como wrappers de compatibilidade para imports antigos.
+
+## Regras de Coleta Recente
+
+A pipeline envia email quando um link novo e salvo no MongoDB com status `inserted` e sem erro de analise. Portanto, "novo" significa "ainda nao processado com sucesso no banco".
+
+Regras por fonte:
+
+- FACEPE: coleta somente editais principais do ano-alvo, remove documentos acessorios como resultado, errata, enquadramento e prorrogacao, e ordena por data de publicacao mais recente.
+- CNPq: coleta chamadas abertas, le a data inicial de inscricao quando disponivel e prioriza chamadas com inscricao mais recente.
+- FINEP: usa a API da FINEP com `sort=dataDePublicacao:desc`, filtra chamadas abertas e limita as 8 chamadas mais recentes.
+- CAPES: segue a ordem oficial da secao "Editais Abertos" no site da CAPES, filtra apenas editais principais do ano-alvo e ignora anexos, termos, modelos, portarias, alteracoes e documentos auxiliares.
+
+Variaveis opcionais para testes ou execucoes controladas:
+
+```env
+FACEPE_TARGET_YEAR=2026
+CAPES_TARGET_YEAR=2026
+```
 
 ## Requisitos
 
@@ -126,7 +152,6 @@ MONGODB_SERVER_SELECTION_TIMEOUT_MS=30000
 MONGODB_CONNECT_TIMEOUT_MS=30000
 MONGODB_SOCKET_TIMEOUT_MS=30000
 
-# SMTP (para testes com Mailtrap ou outro servidor SMTP)
 SMTP_HOST=sandbox.smtp.mailtrap.io
 SMTP_PORT=2525
 SMTP_USER=seu_usuario_mailtrap
@@ -135,13 +160,12 @@ SENDER_EMAIL=from@example.com
 RECIPIENT_EMAIL=to@example.com
 ```
 
-
 Observacoes:
 
 - A collection no Mongo e definida pela fonte selecionada.
 - `MONGODB_COLLECTION` funciona como fallback interno quando nenhuma collection e informada na chamada.
 - Para desativar persistencia mesmo com URI definida, use `MONGODB_ENABLED=0`.
-- O remetente do e-mail e definido por `SENDER_EMAIL`.
+- O remetente do email e definido por `SENDER_EMAIL`.
 - `RECIPIENT_EMAIL` aceita um ou varios emails separados por virgula.
 - Quando houver varios destinatarios, o sistema envia um email unico com todos em copia (Cc).
 
@@ -169,9 +193,25 @@ python .\pipeline\main.py --source capes
 
 Sem `--source`, o padrao e `facepe`.
 
+## Automacao no GitHub Actions
+
+Workflow principal:
+
+- `.github/workflows/pipeline_runner_daily.yml`
+- Agendado diariamente.
+- Roda as fontes configuradas em `PIPELINE_SOURCES`.
+- Por padrao processa `1` edital por fonte por dia (`PIPELINE_LIMIT_PER_SOURCE=1`) para reduzir risco de estourar quota do Gemini.
+
+Fluxo de envio:
+
+1. O scraper devolve links ordenados conforme a regra da fonte.
+2. A pipeline pula links ja salvos com `status=ok`.
+3. O primeiro link pendente dentro do limite e processado.
+4. Se o registro for `inserted` e a analise nao tiver erro, o email HTML e enviado.
+
 ## Lembretes de Prazo (D-30, D-15, D-7)
 
-O projeto agora possui um fluxo dedicado para notificacoes de prazo de submissao.
+O projeto possui um fluxo dedicado para notificacoes de prazo de submissao.
 
 Como funciona:
 
@@ -192,26 +232,10 @@ Exemplo para somente D-7:
 python .\pipeline\main.py --source cnpq --run-reminders --reminder-steps 7
 ```
 
-Automacao no GitHub Actions:
+Automacao dos lembretes:
 
 - Workflow: `.github/workflows/deadline-reminders.yml`
 - Agendado diariamente e com suporte a disparo manual (`workflow_dispatch`).
-
-Destinatarios em copia (email unico):
-
-- Local (`.env`):
-
-```env
-RECIPIENT_EMAIL=gabriel.lopes.albuquerque@gmail.com,augusto.oliveira@upe.br
-```
-
-- GitHub Actions (`Settings > Secrets and variables > Actions`):
-
-```text
-RECIPIENT_EMAIL=gabriel.lopes.albuquerque@gmail.com,augusto.oliveira@upe.br
-```
-
-- Regra de envio: para cada notificacao, e disparado apenas um email e todos os destinatarios ficam no campo `Cc`.
 
 ## Tratamento de Erros
 
@@ -219,17 +243,19 @@ RECIPIENT_EMAIL=gabriel.lopes.albuquerque@gmail.com,augusto.oliveira@upe.br
 - Retry de IA para `503` (backoff progressivo).
 - Falha de Mongo pode desabilitar persistencia sem derrubar toda a execucao.
 - Persistencia com insert/update por `url_pdf` (indice unico).
+- Falhas em subpaginas de fontes externas podem ser ignoradas com log quando nao impedem a coleta dos demais editais.
 
 ## Como Adicionar Nova Fonte
 
-1. Criar arquivo em `pipeline/sources/`, por exemplo `scraper_nova_fonte.py`.
-2. Definir:
+1. Criar um pacote em `pipeline/sources/nova_fonte/`.
+2. Definir pelo menos:
    - `SOURCE_KEY`
    - `SOURCE_LABEL`
    - `BASE_URL`
    - `MONGO_COLLECTION`
    - `collect_links(url_lista: str) -> list[str]`
-3. Registrar a fonte em `pipeline/orchestration/source_registry.py`.
+3. Expor a API publica em `pipeline/sources/nova_fonte/__init__.py`.
+4. Registrar a fonte em `pipeline/orchestration/source_registry.py`.
 
 ## Sandbox (Area de Teste de Desenvolvimento)
 
@@ -252,8 +278,6 @@ Scripts atuais no sandbox:
 
 Teste de integracao de lembrete (sem pipeline de producao):
 
-Modo simulacao (nao envia email):
-
 ```powershell
 python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7
 ```
@@ -264,51 +288,25 @@ Modo real (envia email):
 python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7 --send-email
 ```
 
-Opcional para forcar destinatario:
-
-```powershell
-python .\sandbox\test_deadline_reminder_integration.py --source cnpq --step 7 --send-email --recipient seu_email@dominio.com
-```
-
 ## Boas Praticas
 
 - Nao versionar `.env`.
 - Nao expor credenciais em commits, logs ou README.
 - Rotacionar chaves caso alguma seja exposta.
 
-# Como trocar o modelo de IA (Gemini) ou usar outro agente
+## Como Trocar o Modelo de IA
 
-O pipeline foi projetado para ser flexível, mas atualmente está integrado ao Google Gemini (via SDK `google.genai`).
+O pipeline atualmente esta integrado ao Google Gemini via SDK `google.genai`.
 
-Se você quiser usar outro modelo de IA (como Qwen, Haama, GPT, etc.), siga estas orientações:
+Para trocar apenas o modelo Gemini, altere a constante `MODEL` em `pipeline/pdf_pipeline/analyzer.py`:
 
-### 1. Trocar apenas o modelo Gemini (ex: de `gemini-2.5-flash` para outro Gemini ou agente)
+```python
+MODEL = "gemini-2.5-pro"
+```
 
-- Basta alterar a constante `MODEL` em `pipeline/pdf_pipeline/analyzer.py`:
-   ```python
-   MODEL = "gemini-2.5-pro"  # ou outro modelo Gemini disponível
-   # ou
-   MODEL = "agente"  # se o backend/SDK suportar esse nome
-   ```
-- **Limite:** O modelo precisa ser suportado pelo Google GenAI SDK ou pelo backend configurado.
+Para usar outro provedor/modelo, nao basta trocar o nome do modelo. Sera necessario:
 
-### 2. Usar outro provedor/modelo (Qwen, Haama, GPT, etc.)
-
-- **Não basta trocar o nome do modelo.**
-- Você precisará:
-   - Instalar o SDK ou biblioteca do novo provedor (ex: `pip install dashscope` para Qwen, `openai` para GPT, etc.).
-   - Implementar uma função de chamada específica para o novo modelo (ex: `call_qwen`, `call_gpt`).
-   - Adaptar a autenticação, o envio do prompt e o parsing da resposta conforme a documentação do novo SDK/API.
-   - Substituir a chamada a `call_gemini` por sua nova função no fluxo de análise.
-
-#### Exemplo de pontos a adaptar:
-- **Autenticação:** cada provedor usa um método diferente (API key, token, etc.).
-- **Limite de tokens:** cada modelo tem limites próprios para prompt e resposta.
-- **Formato de resposta:** pode ser texto puro, JSON, ou outro formato — ajuste o parsing conforme necessário.
-- **Desempenho:** a qualidade e velocidade variam entre modelos; recomenda-se testar antes de migrar em produção.
-
-### 3. Recomendações
-
-- Sempre consulte a documentação oficial do modelo/SDK que deseja usar.
-- Teste localmente em uma cópia da pipeline antes de migrar para produção.
-- Se criar uma nova função de chamada, mantenha a interface semelhante à de `call_gemini` para facilitar a troca.
+- instalar o SDK ou biblioteca do novo provedor;
+- implementar uma funcao de chamada especifica;
+- adaptar autenticacao, envio de prompt e parsing da resposta;
+- manter uma interface semelhante a `call_gemini` para facilitar manutencao.
