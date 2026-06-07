@@ -30,7 +30,7 @@ def collect_documents(url_lista: str = BASE_URL) -> list[CapesDocument]:
         try:
             page_html = fetch_html(page_url)
         except requests.RequestException as exc:
-            print(f"Falha ao acessar subpagina CAPES: {page_url} | {exc}")
+            print(f"[CAPES] Subpagina ignorada por erro HTTP: {page_url} | {exc}")
             continue
 
         for document in parse_documents_from_program_page(
@@ -44,10 +44,6 @@ def collect_documents(url_lista: str = BASE_URL) -> list[CapesDocument]:
             seen.add(document.pdf_url)
             documents.append(document)
 
-    documents.sort(
-        key=lambda document: (document.publication_date, -document.position),
-        reverse=True,
-    )
     return documents
 
 
