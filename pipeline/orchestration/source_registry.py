@@ -1,6 +1,6 @@
 import os
 
-from sources import cnpq, facepe, finep, scraper_capes
+from sources import capes, cnpq, facepe, finep
 
 # catalogo central de fontes suportadas pela pipeline
 SOURCE_REGISTRY = {
@@ -22,11 +22,11 @@ SOURCE_REGISTRY = {
         "mongo_collection": finep.MONGO_COLLECTION,
         "collect_links": finep.collect_links,
     },
-    scraper_capes.SOURCE_KEY: {
-        "label": scraper_capes.SOURCE_LABEL,
-        "base_url": scraper_capes.BASE_URL,
-        "mongo_collection": scraper_capes.MONGO_COLLECTION,
-        "collect_links": scraper_capes.collect_links,
+    capes.SOURCE_KEY: {
+        "label": capes.SOURCE_LABEL,
+        "base_url": capes.BASE_URL,
+        "mongo_collection": capes.MONGO_COLLECTION,
+        "collect_links": capes.collect_links,
     },
 }
 
