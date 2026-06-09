@@ -43,9 +43,7 @@ class DeadlineReminderEmailNotifier:
 
         if self._use_case is None:
             self._use_case = SendEmailUseCase(SmtpEmailService())
-            
-            
-        # Mudei o nome de edital titulo 
+
         edital_titulo = self.resolve_edital_titulo(saved_json)
         subject = (
             f"[{edital_titulo}] Prazo de submissao em {days_left} dia(s) - "
