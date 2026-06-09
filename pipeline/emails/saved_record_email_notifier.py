@@ -122,7 +122,7 @@ class SavedRecordEmailNotifier:
             "</td></tr></table>"
             + "</td></tr>"
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #c0392b;'>"
-            "<table width='100%'><tr><td><span style='font-size:13px; color:#a8c4e8;'>Instituição: </span><span style='font-size:14px; font-weight:700; color:#fff;'>" + escape(source_label) + "</span></td><td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: " + escape(source_id) + "</span></td></tr></table>"
+            "<table width='100%'><tr><td><span style='font-size:13px; color:#a8c4e8;'>Orgão: </span><span style='font-size:14px; font-weight:700; color:#fff;'>" + escape(source_label) + "</span></td><td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: " + escape(source_id) + "</span></td></tr></table>"
             "</td></tr>"
             "<tr><td style='background:#ffffff; padding:0;'>"
             "<table width='100%' style='border-bottom:1px solid #dce8f5;'><tr>"
