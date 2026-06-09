@@ -80,6 +80,7 @@ class DeadlineReminderEmailNotifier:
         descricao = escape(str(saved_json.get("descricao") or "Nao informado"))
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "Nao informado"))
         data_limite = escape(format_ptbr_date(deadline))
+        source_ref = escape(source_id.upper())
         safe_url = escape(pdf_url)
 
         return (
@@ -106,7 +107,7 @@ class DeadlineReminderEmailNotifier:
             "<tr><td style='background:#2a5298; padding:14px 36px; border-bottom:2px solid #e67e22;'>"
             "<table width='100%'><tr>"
             f"<td><span style='font-size:13px; color:#a8c4e8;'>Instituição: </span><span style='font-size:14px; font-weight:700; color:#fff;'>{escape(source_label)}</span></td>"
-            f"<td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: {escape(source_id)}</span></td>"
+            f"<td align='right'><span style='font-family:Courier New,monospace; font-size:11px; color:#a8c4e8; background:#1a3a6b; padding:4px 10px; border-radius:3px;'>Ref: {source_ref}</span></td>"
             "</tr></table>"
             "</td></tr>"
             "<tr><td style='background:linear-gradient(135deg,#e67e22 0%,#c0392b 100%); padding:20px 36px;'>"
