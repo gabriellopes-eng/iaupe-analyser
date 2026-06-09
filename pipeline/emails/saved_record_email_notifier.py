@@ -5,6 +5,7 @@ from html import escape
 
 from dotenv import load_dotenv
 
+from .date_format import format_ptbr_date
 from .smtp_email_service import SmtpEmailService
 from .send_email_use_case import SendEmailUseCase
 
@@ -93,7 +94,7 @@ class SavedRecordEmailNotifier:
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "N/A"))
         descricao = escape(str(saved_json.get("descricao") or "N/A"))
-        data_limite = escape(str(saved_json.get("data_limit_submissao") or "N/A"))
+        data_limite = escape(format_ptbr_date(saved_json.get("data_limit_submissao")))
         criterios_publico = self.render_list(saved_json.get("criterios_publico_alvo"))
         criterios_proponente = self.render_list(saved_json.get("criterios_proponente"))
         observacoes = self.render_list(saved_json.get("observacoes"))

@@ -6,6 +6,7 @@ from html import escape
 
 from dotenv import load_dotenv
 
+from .date_format import format_ptbr_date
 from .send_email_use_case import SendEmailUseCase
 from .smtp_email_service import SmtpEmailService
 
@@ -77,7 +78,7 @@ class DeadlineReminderEmailNotifier:
         edital_titulo = escape(self.resolve_edital_titulo(saved_json))
         descricao = escape(str(saved_json.get("descricao") or "Nao informado"))
         publico_alvo = escape(str(saved_json.get("publico_alvo") or "Nao informado"))
-        data_limite = escape(deadline.date().isoformat())
+        data_limite = escape(format_ptbr_date(deadline))
         safe_url = escape(pdf_url)
 
         return (
