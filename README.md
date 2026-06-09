@@ -1,4 +1,4 @@
-# IAUPE Analyzer - Pipeline de Editais Multi-Fonte
+# <img width="30" height="30" alt="image" src="https://github.com/user-attachments/assets/f0b62fea-7617-4b5f-b298-4446b3995eff" /> IAUPE Analyzer - Pipeline de Editais Multi-Fonte
 
 ## Visao Geral
 
