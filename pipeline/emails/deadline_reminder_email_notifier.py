@@ -46,8 +46,9 @@ class DeadlineReminderEmailNotifier:
 
         edital_titulo = self.resolve_edital_titulo(saved_json)
         subject = (
+            f"[{source_label}] "
             f"[{edital_titulo}] Prazo de submissao em {days_left} dia(s) - "
-            f"[{source_label}]"
+            f"{source_label} ({source_id})"
         )
         html = self.build_html(
             source_label=source_label,

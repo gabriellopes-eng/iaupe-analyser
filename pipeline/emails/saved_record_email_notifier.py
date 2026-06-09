@@ -57,8 +57,9 @@ class SavedRecordEmailNotifier:
 
         # O assunto resume o evento principal: registro salvo e origem do dado.
         subject = (
+            f"[{source_label}] "
             f"{edital_titulo} - "
-            f"[{source_label}]"
+            f"{source_label} ({source_id})"
         )
 
         # O HTML concentra os campos principais e inclui o JSON salvo para auditoria visual.
