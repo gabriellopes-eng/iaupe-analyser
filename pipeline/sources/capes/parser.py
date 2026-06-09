@@ -94,7 +94,14 @@ def parse_documents_from_program_page(
     html: str,
     target_year: int,
 ) -> list[CapesDocument]:
-    """Transforma a tabela de uma subpagina da CAPES em editais principais."""
+    """Transforma a tabela de uma subpagina da CAPES em editais principais.
+    O parser filtra documentos por data, ano-alvo e se são editais principais aqui.
+    
+    Ponto importante para apresentar com precisão: 
+    diferente de FACEPE e CNPq, a CAPES não tem um sort() explícito no código atual. 
+    Ela segue a ordem oficial da seção “Editais Abertos” no site, depois filtra os documentos válidos.
+    
+    """
     soup = BeautifulSoup(html, "lxml")
     table = find_editais_table(soup)
     if table is None:

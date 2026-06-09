@@ -41,6 +41,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         quota_exceeded_total = 0
         error_total = 0
         emails_sent_total = 0
+        
+        #Aqui eu apliquei o filtro de limite antes de processar os documentos, para evitar gastar recursos de IA e MongoDB com documentos que nao serao processados nessa execucao devido ao limite definido. Assim, priorizo os documentos mais recentes (assumindo que os links sao retornados em ordem do mais recente para o mais antigo) e evito retrabalho desnecessario.
 
         links = source["collect_links"](source["base_url"])
         found_total = len(links)

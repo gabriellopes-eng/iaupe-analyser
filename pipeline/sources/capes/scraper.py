@@ -48,5 +48,8 @@ def collect_documents(url_lista: str = BASE_URL) -> list[CapesDocument]:
 
 
 def collect_links(url_lista: str = BASE_URL) -> list[str]:
-    """Coleta URLs dos editais principais mais recentes da CAPES."""
+    """
+    O CAPES esta aqui
+    Coleta URLs dos editais principais mais recentes da CAPES.
+    """
     return [document.pdf_url for document in collect_documents(url_lista)]

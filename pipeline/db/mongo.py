@@ -97,7 +97,9 @@ def coll(collection_name: Optional[str] = None) -> Collection:
 
     return collection_cache[coll_name]
 
-
+# Essa funcao serve para verificar se um edital ja foi processado com status "ok" 
+# antes de tentar analisar e salvar novamente, o que economiza recursos de IA 
+# e evita atualizacoes desnecessarias no MongoDB. Ela é chamada no pipeline_runner antes de processar cada link, e se retornar True, o pipeline simplesmente pula para o proximo link sem gastar recursos com analise ou persistencia.
 def already_exists(url_pdf: str, collection_name: Optional[str] = None) -> bool:
     """Verifica se um edital ja foi salvo com status ok."""
     try:

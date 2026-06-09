@@ -52,6 +52,11 @@ def get_oauth_token(origin: str) -> str:
 
 
 def fetch_open_chamadas(origin: str, token: str) -> list[dict[str, str | int]]:
+    '''
+    Depois o client filtra apenas chamadas abertas:
+    Ou seja: a API retorna por publicação mais recente, 
+    o código mantém apenas chamadas abertas e limita a primeira página aos itens mais recentes.
+    '''
     api_url = f"{urljoin(origin, CHAMADAS_API_PATH)}&page={FIRST_PAGE}"
     response = requests.get(api_url, headers=auth_headers(token), timeout=30)
     response.raise_for_status()

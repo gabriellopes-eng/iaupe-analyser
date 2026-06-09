@@ -17,7 +17,9 @@ def parse_ptbr_date(value: str) -> datetime | None:
 
 
 def extract_inscription_start_date(item) -> datetime | None:
-    """Extrai a data inicial de inscricao de um card de chamada do CNPq."""
+    """
+    A extração da data inicial de inscrição é feita a partir de um elemento com a classe "inscricao" dentro do card da chamada.
+    Extrai a data inicial de inscricao de um card de chamada do CNPq."""
     inscricao = item.select_one(".inscricao")
     if inscricao is None:
         return None

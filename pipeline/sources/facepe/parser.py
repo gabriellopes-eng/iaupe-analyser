@@ -68,7 +68,9 @@ def extract_primary_pdf_url(item) -> str:
 
 
 def parse_calls(html: str, target_year: int) -> list[FacepeCall]:
-    """Transforma o HTML da FACEPE em editais principais do ano-alvo."""
+    """
+    O parser que extrai e valida a data de publicação, o título e a URL do PDF principal de cada edital da FACEPE.
+    Transforma o HTML da FACEPE em editais principais do ano-alvo."""
     soup = BeautifulSoup(html, "lxml")
     calls: list[FacepeCall] = []
     seen: set[str] = set()

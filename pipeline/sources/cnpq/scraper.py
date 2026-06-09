@@ -7,7 +7,9 @@ from .url_utils import is_cnpq_domain, is_detail_page, is_pdf_url
 
 
 def sort_open_call_urls(html: str, page_url: str) -> list[str]:
-    """Ordena chamadas abertas pela data inicial de inscricao mais recente."""
+    """
+    No CNPq, o critério é a data inicial de inscrição. A fonte prioriza chamadas que têm essa data e coloca as mais recentes primeiro
+    Ordena chamadas abertas pela data inicial de inscricao mais recente."""
     calls = parse_open_calls(html, page_url)
     calls.sort(
         key=lambda call: (
