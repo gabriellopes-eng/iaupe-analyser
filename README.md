@@ -60,6 +60,7 @@ pipeline/
 |-- db/
 |   `-- mongo.py                     # persistência e cache de conexão MongoDB
 `-- emails/
+    |-- date_format.py
     |-- email.py
     |-- emails_service.py
     |-- smtp_email_service.py
