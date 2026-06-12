@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime, timezone
 
 from db.mongo import already_exists, save
 from emails.saved_record_email_notifier import SavedRecordEmailNotifier
@@ -150,22 +151,30 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                 elif status == "disabled":
                     error_total += 1
 
+                deadline_passed = (
+                    data_limit_submissao is not None
+                    and data_limit_submissao < datetime.now(timezone.utc)
+                )
+
                 if status == "inserted" and not analysis_has_error:
-                    try:
-                        notifier.notify_saved_record(
-                            source_label=source["label"],
-                            source_id=source_id,
-                            collection_name=source["mongo_collection"],
-                            save_status=status,
-                            pdf_url=link,
-                            saved_json=resultado,
-                        )
-                        if notifier.is_enabled():
-                            emails_sent_total += 1
-                            print("📧 Email HTML enviado para destinatario de teste.")
-                    except Exception as email_exc:
-                        error_total += 1
-                        print(f"Falha ao enviar email de notificacao: {email_exc}")
+                    if deadline_passed:
+                        print("📭 Email não enviado: prazo de submissão já expirado.")
+                    else:
+                        try:
+                            notifier.notify_saved_record(
+                                source_label=source["label"],
+                                source_id=source_id,
+                                collection_name=source["mongo_collection"],
+                                save_status=status,
+                                pdf_url=link,
+                                saved_json=resultado,
+                            )
+                            if notifier.is_enabled():
+                                emails_sent_total += 1
+                                print("📧 Email HTML enviado para destinatario de teste.")
+                        except Exception as email_exc:
+                            error_total += 1
+                            print(f"Falha ao enviar email de notificacao: {email_exc}")
 
                 if status == "inserted" and analysis_has_error:
                     print("📭 Email nao enviado: analise com erro (registro salvo para auditoria).")
