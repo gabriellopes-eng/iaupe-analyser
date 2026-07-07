@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 import smtplib
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -9,6 +13,17 @@ from .email import Email
 
 # Implementacao concreta de envio.
 # Esta classe deixa explicito que o mecanismo usado e SMTP.
+
+# Pasta com os arquivos de imagem dos logos institucionais.
+ASSETS_DIR = Path(__file__).parent / "assets"
+
+# Cada logo tem: o Content-ID usado no HTML (ex: <img src="cid:logo_upe">),
+# o caminho do arquivo no disco, e o subtipo MIME (jpeg/png) do arquivo.
+# Anexados como inline (nao como anexo baixavel) para aparecer direto no corpo do email.
+INLINE_LOGOS = (
+    ("logo_upe", ASSETS_DIR / "LOGO-UPE.jpg", "jpeg"),
+    ("logo_iit", ASSETS_DIR / "logo-iit.png", "png"),
+)
 
 
 class SmtpEmailService:
@@ -40,7 +55,7 @@ class SmtpEmailService:
         body_text = (email.text or "").strip()
         body_html = (email.html or "").strip()
         body = body_html if body_html else body_text
-        content_type = "text/html" if body_html else "text/plain"
+        content_subtype = "html" if body_html else "plain"
 
         if not body:
             raise ValueError("Informe text ou html para envio")
@@ -53,17 +68,30 @@ class SmtpEmailService:
         # Mantemos um unico destinatario no To e todos os alvos reais em Cc.
         to_header = self.default_from
 
-        # Monta a mensagem SMTP com headers minimos e o corpo final.
-        message = "\r\n".join([
-            f"From: {self.default_from}",
-            f"To: {to_header}",
-            f"Cc: {', '.join(cc_recipients)}",
-            f"Subject: {email.subject}",
-            "MIME-Version: 1.0",
-            f"Content-Type: {content_type}; charset=utf-8",
-            "",
-            body,
-        ])
+        # multipart/related e o tipo de mensagem que permite um corpo HTML referenciar
+        # imagens anexadas na propria mensagem via "cid:", em vez de depender de uma URL
+        # externa (que muitos clientes de email bloqueiam por padrao).
+        message = MIMEMultipart("related")
+        message["From"] = self.default_from
+        message["To"] = to_header
+        message["Cc"] = ", ".join(cc_recipients)
+        message["Subject"] = email.subject
+        # O corpo (texto ou HTML) sempre entra como a primeira parte da mensagem.
+        message.attach(MIMEText(body, content_subtype, "utf-8"))
+
+        if content_subtype == "html":
+            # So anexa cada logo se o HTML realmente referencia o Content-ID dele
+            # (evita anexar imagem em templates que nao usam logo) e se o arquivo existe.
+            for content_id, path, subtype in INLINE_LOGOS:
+                if content_id not in body or not path.exists():
+                    continue
+                logo = MIMEImage(path.read_bytes(), _subtype=subtype)
+                # Content-ID e o que liga o anexo ao "cid:logo_upe" usado no <img src>.
+                logo.add_header("Content-ID", f"<{content_id}>")
+                # "inline" (em vez de "attachment") faz o cliente de email exibir a
+                # imagem no corpo da mensagem, sem listar como anexo separado.
+                logo.add_header("Content-Disposition", "inline", filename=path.name)
+                message.attach(logo)
 
         # Fluxo do envio:
         # conecta, sobe TLS, autentica e despacha a mensagem.
@@ -72,4 +100,4 @@ class SmtpEmailService:
             smtp.starttls()
             smtp.ehlo()
             smtp.login(self.user, self.password)
-            smtp.sendmail(self.default_from, cc_recipients, message.encode("utf-8"))
+            smtp.sendmail(self.default_from, cc_recipients, message.as_bytes())
