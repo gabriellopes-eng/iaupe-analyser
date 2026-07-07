@@ -6,3 +6,5 @@ lxml
 pymongo[srv]==4.16.0
 google-genai
 certifi
+pytesseract
+pypdfium2

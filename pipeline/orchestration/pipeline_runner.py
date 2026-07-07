@@ -156,7 +156,11 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                     and data_limit_submissao < datetime.now(timezone.utc)
                 )
 
-                if status == "inserted" and not analysis_has_error:
+                # "updated" tambem conta como novidade aqui: already_exists() so deixa
+                # chegar neste ponto quando o status anterior nao era "ok" (documento
+                # inexistente ou salvo antes com erro), entao mesmo em "updated" e a
+                # primeira vez que esse edital fica valido para notificar.
+                if status in ("inserted", "updated") and not analysis_has_error:
                     if deadline_passed:
                         print("📭 Email não enviado: prazo de submissão já expirado.")
                     else:
