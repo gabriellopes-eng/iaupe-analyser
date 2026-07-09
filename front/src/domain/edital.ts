@@ -1,0 +1,101 @@
+// Camada de dominio: tipos e regras puras, sem dependencia de framework ou banco.
+// Serve de contrato compartilhado entre a UI, a API e o acesso a dados.
+
+export type SourceKey = "facepe" | "cnpq" | "finep" | "capes";
+
+export interface SourceMeta {
+  key: SourceKey;
+  label: string;
+  orgao: string;
+  color: string;
+  collection: string;
+}
+
+// Metadados das fontes, espelhando as collections da pipeline Python.
+export const SOURCES: Record<SourceKey, SourceMeta> = {
+  facepe: {
+    key: "facepe",
+    label: "FACEPE",
+    orgao: "Fundação de Amparo à Ciência e Tecnologia de PE",
+    color: "#c0392b",
+    collection: "editais_facepe",
+  },
+  cnpq: {
+    key: "cnpq",
+    label: "CNPq",
+    orgao: "Conselho Nacional de Desenvolvimento Científico e Tecnológico",
+    color: "#1c7a53",
+    collection: "editais_cnpq",
+  },
+  finep: {
+    key: "finep",
+    label: "FINEP",
+    orgao: "Financiadora de Estudos e Projetos",
+    color: "#2a5298",
+    collection: "editais_finep",
+  },
+  capes: {
+    key: "capes",
+    label: "CAPES",
+    orgao: "Coord. de Aperfeiçoamento de Pessoal de Nível Superior",
+    color: "#7a5cbf",
+    collection: "editais_capes",
+  },
+};
+
+export interface Edital {
+  id: string; // identificador estavel derivado da url_pdf (base64url)
+  urlPdf: string;
+  source: SourceKey;
+  sourceLabel: string;
+  orgao: string;
+  color: string;
+  ref: string;
+  titulo: string;
+  deadline: string | null; // ISO 8601 (data limite de submissao)
+  areas: string[];
+  interesse: boolean;
+}
+
+export type DeadlineUrgency = "urgent" | "soon" | "calm" | "none";
+
+// Dias restantes ate o prazo (0 = hoje, negativo = expirado, null = sem data).
+export function daysUntil(deadlineIso: string | null, now: Date = new Date()): number | null {
+  if (!deadlineIso) return null;
+  const deadline = new Date(deadlineIso);
+  if (Number.isNaN(deadline.getTime())) return null;
+
+  const startOfDay = (d: Date) =>
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const diffMs = startOfDay(deadline) - startOfDay(now);
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+export function deadlineUrgency(days: number | null): DeadlineUrgency {
+  if (days === null) return "none";
+  if (days <= 7) return "urgent";
+  if (days <= 20) return "soon";
+  return "calm";
+}
+
+const MESES = [
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez",
+];
+
+export function formatPtBrDate(iso: string | null): string {
+  if (!iso) return "Sem prazo definido";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "Sem prazo definido";
+  const dia = String(d.getUTCDate()).padStart(2, "0");
+  return `${dia} ${MESES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+// Codificacao reversivel da url_pdf para uso como id em rotas de API.
+export function encodeId(urlPdf: string): string {
+  return Buffer.from(urlPdf, "utf-8").toString("base64url");
+}
+
+export function decodeId(id: string): string {
+  return Buffer.from(id, "base64url").toString("utf-8");
+}

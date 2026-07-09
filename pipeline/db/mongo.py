@@ -160,21 +160,64 @@ def save(
         return "disabled"
 
 
+def set_interest(
+    url_pdf: str,
+    collection_name: Optional[str] = None,
+    interested: bool = True,
+) -> str:
+    """
+    Marca (ou desmarca) um edital como de interesse do usuario.
+
+    Protótipo: o "interesse" é apenas uma flag booleana no proprio documento.
+    Retorna: updated | not_found | disabled
+    """
+    try:
+        result = coll(collection_name).update_one(
+            {"url_pdf": url_pdf},
+            {"$set": {"interesse": bool(interested), "updated_at": datetime.now(timezone.utc)}},
+        )
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao marcar interesse: {exc}")
+        return "disabled"
+
+    return "updated" if result.matched_count > 0 else "not_found"
+
+
+def list_interest(collection_name: Optional[str] = None) -> list[dict]:
+    """Lista os editais marcados como de interesse."""
+    try:
+        cursor = coll(collection_name).find(
+            {"interesse": True},
+            {"_id": 0, "url_pdf": 1, "resultado": 1, "data_limit_submissao": 1},
+        )
+        return list(cursor)
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao listar interesses: {exc}")
+        return []
+
+
 def find_deadline_candidates(
     *,
     collection_name: Optional[str],
     start_at: datetime,
     end_at: datetime,
+    only_interest: bool = False,
 ) -> list[dict]:
     """
     Busca editais com status ok e data_limit_submissao na janela informada.
+
+    Quando only_interest=True, retorna apenas editais marcados como de interesse.
     """
+    query = {
+        "status": "ok",
+        "data_limit_submissao": {"$gte": start_at, "$lte": end_at},
+    }
+    if only_interest:
+        query["interesse"] = True
+
     try:
         cursor = coll(collection_name).find(
-            {
-                "status": "ok",
-                "data_limit_submissao": {"$gte": start_at, "$lte": end_at},
-            },
+            query,
             {
                 "_id": 0,
                 "url_pdf": 1,

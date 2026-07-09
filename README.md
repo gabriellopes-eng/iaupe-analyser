@@ -85,6 +85,32 @@ Estrutura padrão dos pacotes:
 
 Os arquivos `scraper_facepe.py`, `scraper_cnpq.py` e `scraper_capes.py` existem apenas como wrappers de compatibilidade para imports antigos.
 
+## Frontend (Next.js)
+
+Além do pipeline Python, o projeto tem um frontend em `front/` que implementa a
+funcionalidade de **editais de interesse**: o pesquisador marca os editais que acompanha e
+passa a receber os lembretes de prazo (D-30, D-15, D-7) **apenas dos selecionados**.
+
+- Stack: Next.js 14 (App Router) + React 18 + TypeScript, sem dependências de UI externas.
+- Módulo **independente** do pipeline. O único ponto de integração é o MongoDB
+  compartilhado: o front lê as collections `editais_*` e grava o campo `interesse`, o mesmo
+  usado no envio de lembretes com `--only-interest`.
+- Camadas separadas (`domain` -> `lib` -> `api`/`components`) para alta coesão e baixo
+  acoplamento.
+- Roda em **modo demonstração (mock)** quando `MONGODB_URI` não está configurado, exibindo
+  um selo `DEMO`/`AO VIVO` na tela.
+
+Execução rápida:
+
+```powershell
+cd front
+npm install
+npm run dev
+```
+
+Acesse http://localhost:3000. Detalhes de arquitetura, fluxo do código e endpoints em
+[`front/README.md`](front/README.md).
+
 ## Regras de Coleta Recente
 
 A regra principal é simples:
