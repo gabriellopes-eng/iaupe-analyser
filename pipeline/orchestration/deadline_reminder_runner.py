@@ -29,7 +29,11 @@ def parse_reminder_steps(raw: str) -> list[int]:
     return unique or DEFAULT_REMINDER_STEPS
 
 
-def run_deadline_reminders(source_key: str | None, steps_raw: str) -> None:
+def run_deadline_reminders(
+    source_key: str | None,
+    steps_raw: str,
+    only_interest: bool = False,
+) -> None:
     source_id, source = get_source_config(source_key)
     notifier = DeadlineReminderEmailNotifier()
     steps = parse_reminder_steps(steps_raw)
@@ -42,11 +46,13 @@ def run_deadline_reminders(source_key: str | None, steps_raw: str) -> None:
         collection_name=source["mongo_collection"],
         start_at=today_start,
         end_at=window_end,
+        only_interest=only_interest,
     )
 
     print(
         f"Lembretes | Fonte: {source['label']} ({source_id}) | "
         f"Janela: {today_start.date()} ate {window_end.date()} | "
+        f"Somente interesse: {'sim' if only_interest else 'nao'} | "
         f"Candidatos: {len(docs)}"
     )
 
