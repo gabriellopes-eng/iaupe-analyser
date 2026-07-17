@@ -266,7 +266,9 @@ Fluxo de envio:
 1. O scraper devolve links ordenados conforme a regra da fonte.
 2. A pipeline pula links já salvos com `status=ok`.
 3. O primeiro link pendente dentro do limite é processado.
-4. Se o registro for `inserted` e a análise não tiver erro, o e-mail HTML é enviado.
+4. Se o registro for `inserted` e a análise não tiver erro, o e-mail HTML é enviado —
+   esse aviso de "edital novo" **não é filtrado por fonte seguida** (é descoberta, não
+   ação urgente); quem é filtrado por fonte seguida é o lembrete de prazo, abaixo.
 
 ## Lembretes de Prazo (D-30, D-15, D-7)
 
