@@ -26,54 +26,6 @@
   --mono: ui-monospace, "Cascadia Code", "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ground: #0b1524;
-    --surface: #13233b;
-    --surface-2: #182c48;
-    --ink: #e9f1fc;
-    --ink-soft: #aabfdd;
-    --muted: #708aac;
-    --line: #263c5e;
-    --line-soft: #1d3151;
-    --navy: #16305a;
-    --blue-bright: #6197e6;
-    --brand-grad: linear-gradient(135deg, #16305a 0%, #26518f 100%);
-    --gold: #e6b23e;
-    --gold-soft: #2c2510;
-    --red: #e5675a;
-    --red-soft: #33191a;
-    --amber: #d69a3c;
-    --amber-soft: #2c2410;
-    --green: #52b98a;
-    --green-soft: #10281f;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.35);
-    --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.5), 0 22px 46px rgba(0, 0, 0, 0.5);
-  }
-}
-
-:root[data-theme="light"] {
-  --ground: #eef3fb; --surface: #ffffff; --surface-2: #eaf1fb;
-  --ink: #16233b; --ink-soft: #445777; --muted: #7789a5;
-  --line: #d7e2f1; --line-soft: #e6eefa; --navy: #1a3a6b; --blue-bright: #2f63c0;
-  --brand-grad: linear-gradient(135deg, #1a3a6b 0%, #2a5298 100%);
-  --gold: #d99a1f; --gold-soft: #fbf1d8; --red: #c0392b; --red-soft: #fbe4e1;
-  --amber: #b3760a; --amber-soft: #f8ecd6; --green: #1c7a53; --green-soft: #dcf0e6;
-  --shadow: 0 1px 2px rgba(20, 40, 80, 0.06), 0 8px 24px rgba(20, 40, 80, 0.06);
-  --shadow-lift: 0 2px 6px rgba(20, 40, 80, 0.1), 0 18px 40px rgba(20, 40, 80, 0.14);
-}
-
-:root[data-theme="dark"] {
-  --ground: #0b1524; --surface: #13233b; --surface-2: #182c48;
-  --ink: #e9f1fc; --ink-soft: #aabfdd; --muted: #708aac;
-  --line: #263c5e; --line-soft: #1d3151; --navy: #16305a; --blue-bright: #6197e6;
-  --brand-grad: linear-gradient(135deg, #16305a 0%, #26518f 100%);
-  --gold: #e6b23e; --gold-soft: #2c2510; --red: #e5675a; --red-soft: #33191a;
-  --amber: #d69a3c; --amber-soft: #2c2410; --green: #52b98a; --green-soft: #10281f;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.35);
-  --shadow-lift: 0 2px 6px rgba(0, 0, 0, 0.5), 0 22px 46px rgba(0, 0, 0, 0.5);
-}
-
 * { box-sizing: border-box; }
 html, body { padding: 0; margin: 0; }
 body {
@@ -109,15 +61,6 @@ header.top {
   color: #aecbf0; font-weight: 600; margin: 0 0 2px;
 }
 .brand-name { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.2px; }
-.theme-btn {
-  margin-left: auto; flex: none;
-  background: rgba(255, 255, 255, 0.1); color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 9px; padding: 8px 12px; font-size: 13px; cursor: pointer;
-  font-family: var(--sans); display: inline-flex; align-items: center; gap: 7px;
-  transition: background 0.15s;
-}
-.theme-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
 /* ---- Intro ---- */
 .intro { padding: 26px 0 6px; max-width: 62ch; }
@@ -227,7 +170,6 @@ header.top {
   font-size: 12px; font-weight: 700; color: var(--navy);
   background: var(--surface-2); border-radius: 20px; padding: 4px 11px 4px 9px;
 }
-:root[data-theme="dark"] .src-chip { color: var(--ink); }
 .src-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .ref {
   font-family: var(--mono); font-size: 11px; color: var(--muted);

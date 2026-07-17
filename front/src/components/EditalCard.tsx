@@ -18,7 +18,7 @@ interface EditalCardProps {
 export default function EditalCard({ edital, followed }: EditalCardProps) {
   const days = daysUntil(edital.deadline);
   const urgency = deadlineUrgency(days);
-  const daysLabel = days === null ? "—" : `${days}d`;
+  const daysLabel = days === null ? "-" : `${days}d`;
 
   return (
     <article className="card" data-followed={followed}>

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 
-import ThemeToggle from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Editais de Interesse — IAUPE Analyzer",
+  title: "Fontes de Interesse - IAUPE Analyzer",
   description:
-    "Selecione os editais que você acompanha e receba lembretes de prazo apenas dos selecionados.",
+    "Escolha as fontes que você acompanha e receba lembretes de prazo dos editais delas.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -31,7 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <p className="brand-eyebrow">Plataforma de Monitoramento de Editais</p>
               <p className="brand-name">IAUPE Analyzer</p>
             </div>
-            <ThemeToggle />
           </div>
         </header>
         {children}

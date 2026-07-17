@@ -77,8 +77,8 @@ export default function EditaisView({ initialEditais, initialPreferences, live }
     const label = source.toUpperCase();
     setToast({
       message: added
-        ? `${label} ligada — você receberá os lembretes de prazo dela`
-        : `${label} desligada — sem mais lembretes dela`,
+        ? `${label} ligada. Você receberá os lembretes de prazo dela`
+        : `${label} desligada. Sem mais lembretes dela`,
       tone: added ? "gold" : "muted",
       show: true,
     });
@@ -94,7 +94,7 @@ export default function EditaisView({ initialEditais, initialPreferences, live }
         </h1>
         <p>
           Escolha as fontes que você acompanha. Os lembretes de prazo (D-30, D-15 e D-7) chegam por
-          e-mail <b>de todo edital das fontes ligadas</b> — sem precisar marcar edital por edital.
+          e-mail <b>de todo edital das fontes ligadas</b>, sem precisar marcar edital por edital.
         </p>
       </section>
 
