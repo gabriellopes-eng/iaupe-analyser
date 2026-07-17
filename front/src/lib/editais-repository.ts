@@ -2,11 +2,28 @@ import {
   Edital,
   SOURCES,
   SourceKey,
-  decodeId,
+  SourcePreferences,
+  ALL_SOURCES_UNFOLLOWED,
+  daysUntil,
   encodeId,
 } from "@/domain/edital";
 import { getDb, isMongoConfigured } from "@/lib/mongo";
-import { getMockEditais, setMockInterest, shortRef } from "@/lib/mock-data";
+import {
+  getMockEditais,
+  getMockPreferences,
+  setMockSourceFollowed,
+  shortRef,
+} from "@/lib/mock-data";
+
+// Preferencias de fonte: documento unico (sem multi-usuario ainda) na collection
+// `preferencias_usuario`, com o mesmo shape que a pipeline Python le/escreve.
+const PREFERENCES_COLLECTION = "preferencias_usuario";
+const PREFERENCES_DOC_ID = "fontes_seguidas";
+
+interface PreferencesDoc {
+  _id?: string;
+  fontes_seguidas?: string[];
+}
 
 // Repositorio de editais: unica porta de acesso a dados para a UI/API.
 // Quando o MongoDB nao esta configurado (ou falha), cai para dados mock,
@@ -15,7 +32,6 @@ import { getMockEditais, setMockInterest, shortRef } from "@/lib/mock-data";
 interface EditalDoc {
   url_pdf?: string;
   status?: string;
-  interesse?: boolean;
   data_limit_submissao?: Date | string | null;
   resultado?: {
     titulo?: string;
@@ -62,13 +78,20 @@ function mapDoc(doc: EditalDoc, source: SourceKey): Edital | null {
     titulo: pickTitulo(doc),
     deadline: toIso(doc.data_limit_submissao),
     areas: pickAreas(doc),
-    interesse: doc.interesse === true,
   };
+}
+
+// Edital sem prazo (deadline null) fica; com prazo no passado sai da vitrine.
+function excludeExpired(editais: Edital[]): Edital[] {
+  return editais.filter((e) => {
+    const days = daysUntil(e.deadline);
+    return days === null || days >= 0;
+  });
 }
 
 export async function listEditais(): Promise<Edital[]> {
   if (!isMongoConfigured()) {
-    return getMockEditais();
+    return excludeExpired(getMockEditais());
   }
 
   try {
@@ -79,7 +102,7 @@ export async function listEditais(): Promise<Edital[]> {
       const docs = await db
         .collection<EditalDoc>(meta.collection)
         .find({ status: "ok" })
-        .project({ url_pdf: 1, interesse: 1, data_limit_submissao: 1, resultado: 1 })
+        .project({ url_pdf: 1, data_limit_submissao: 1, resultado: 1 })
         .toArray();
 
       for (const doc of docs) {
@@ -95,39 +118,56 @@ export async function listEditais(): Promise<Edital[]> {
       if (!b.deadline) return -1;
       return a.deadline < b.deadline ? -1 : 1;
     });
-    return all;
+    return excludeExpired(all);
   } catch (err) {
     console.error("[editais-repository] Falha ao consultar Mongo, usando mock:", err);
-    return getMockEditais();
+    return excludeExpired(getMockEditais());
   }
 }
 
-export async function setInterest(id: string, interested: boolean): Promise<boolean> {
+export async function getPreferences(): Promise<SourcePreferences> {
   if (!isMongoConfigured()) {
-    return setMockInterest(id, interested);
-  }
-
-  let urlPdf: string;
-  try {
-    urlPdf = decodeId(id);
-  } catch {
-    return false;
+    return getMockPreferences();
   }
 
   try {
     const db = await getDb();
-    for (const meta of Object.values(SOURCES)) {
-      const result = await db
-        .collection<EditalDoc>(meta.collection)
-        .updateOne(
-          { url_pdf: urlPdf },
-          { $set: { interesse: interested, updated_at: new Date() } },
-        );
-      if (result.matchedCount > 0) return true;
+    const doc = await db
+      .collection<PreferencesDoc>(PREFERENCES_COLLECTION)
+      .findOne({ _id: PREFERENCES_DOC_ID } as never);
+
+    const followed = new Set((doc?.fontes_seguidas || []).map((f) => f.toLowerCase()));
+    const prefs = { ...ALL_SOURCES_UNFOLLOWED };
+    for (const key of Object.keys(prefs) as SourceKey[]) {
+      prefs[key] = followed.has(key);
     }
-    return false;
+    return prefs;
   } catch (err) {
-    console.error("[editais-repository] Falha ao marcar interesse:", err);
-    return false;
+    console.error("[editais-repository] Falha ao ler preferencias, usando mock:", err);
+    return getMockPreferences();
+  }
+}
+
+export async function setSourceFollowed(
+  source: SourceKey,
+  followed: boolean,
+): Promise<SourcePreferences> {
+  if (!isMongoConfigured()) {
+    return setMockSourceFollowed(source, followed);
+  }
+
+  try {
+    const db = await getDb();
+    await db.collection<PreferencesDoc>(PREFERENCES_COLLECTION).updateOne(
+      { _id: PREFERENCES_DOC_ID } as never,
+      {
+        [followed ? "$addToSet" : "$pull"]: { fontes_seguidas: source },
+      } as never,
+      { upsert: true },
+    );
+    return getPreferences();
+  } catch (err) {
+    console.error("[editais-repository] Falha ao gravar preferencias:", err);
+    return getMockPreferences();
   }
 }
