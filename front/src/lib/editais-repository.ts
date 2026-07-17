@@ -4,6 +4,7 @@ import {
   SourceKey,
   SourcePreferences,
   ALL_SOURCES_UNFOLLOWED,
+  daysUntil,
   encodeId,
 } from "@/domain/edital";
 import { getDb, isMongoConfigured } from "@/lib/mongo";
@@ -80,9 +81,17 @@ function mapDoc(doc: EditalDoc, source: SourceKey): Edital | null {
   };
 }
 
+// Edital sem prazo (deadline null) fica; com prazo no passado sai da vitrine.
+function excludeExpired(editais: Edital[]): Edital[] {
+  return editais.filter((e) => {
+    const days = daysUntil(e.deadline);
+    return days === null || days >= 0;
+  });
+}
+
 export async function listEditais(): Promise<Edital[]> {
   if (!isMongoConfigured()) {
-    return getMockEditais();
+    return excludeExpired(getMockEditais());
   }
 
   try {
@@ -109,10 +118,10 @@ export async function listEditais(): Promise<Edital[]> {
       if (!b.deadline) return -1;
       return a.deadline < b.deadline ? -1 : 1;
     });
-    return all;
+    return excludeExpired(all);
   } catch (err) {
     console.error("[editais-repository] Falha ao consultar Mongo, usando mock:", err);
-    return getMockEditais();
+    return excludeExpired(getMockEditais());
   }
 }
 

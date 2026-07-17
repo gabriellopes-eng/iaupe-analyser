@@ -18,7 +18,13 @@ function getClient(): Promise<MongoClient> {
     const client = new MongoClient(process.env.MONGODB_URI as string, {
       serverSelectionTimeoutMS: 8000,
     });
-    clientPromise = client.connect();
+    // se a conexao falhar, limpa o cache para que a proxima chamada tente de
+    // novo em vez de reusar para sempre a mesma promise rejeitada (ex.: falha
+    // transitoria do cluster, e nao um problema permanente de configuracao).
+    clientPromise = client.connect().catch((err) => {
+      clientPromise = null;
+      throw err;
+    });
   }
   return clientPromise;
 }
