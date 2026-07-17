@@ -44,9 +44,13 @@ def resolve_collection_name(collection_name: Optional[str]) -> str:
     return resolved or "editais"
 
 
-def coll(collection_name: Optional[str] = None) -> Collection:
+def coll(collection_name: Optional[str] = None, ensure_edital_indexes: bool = True) -> Collection:
     """
-    Retorna a collection do MongoDB (com cache) e garante indice unico por url_pdf.
+    Retorna a collection do MongoDB (com cache).
+
+    Quando ensure_edital_indexes=True (padrao), garante os indices usados pelas
+    collections de editais (url_pdf unico, data_limit_submissao). Passe False
+    para collections de outro formato, como preferencias do usuario.
     """
     global client_cache, collection_cache
 
@@ -85,8 +89,9 @@ def coll(collection_name: Optional[str] = None) -> Collection:
 
         # cache da collection por nome para reduzir overhead
         collection = client_cache[db_name][coll_name]
-        collection.create_index([("url_pdf", ASCENDING)], unique=True)
-        collection.create_index([("data_limit_submissao", ASCENDING)])
+        if ensure_edital_indexes:
+            collection.create_index([("url_pdf", ASCENDING)], unique=True)
+            collection.create_index([("data_limit_submissao", ASCENDING)])
         collection_cache[coll_name] = collection
 
     except PyMongoError as exc:
@@ -160,40 +165,51 @@ def save(
         return "disabled"
 
 
-def set_interest(
-    url_pdf: str,
-    collection_name: Optional[str] = None,
-    interested: bool = True,
-) -> str:
-    """
-    Marca (ou desmarca) um edital como de interesse do usuario.
+PREFERENCES_COLLECTION = "preferencias_usuario"
+PREFERENCES_DOC_ID = "fontes_seguidas"
 
-    Protótipo: o "interesse" é apenas uma flag booleana no proprio documento.
-    Retorna: updated | not_found | disabled
+
+def get_followed_sources() -> set[str]:
+    """
+    Le as fontes que o usuario segue (preferencia global, sem multi-usuario ainda).
+
+    Mesmo documento/collection que o front-end Next.js le e escreve.
     """
     try:
-        result = coll(collection_name).update_one(
-            {"url_pdf": url_pdf},
-            {"$set": {"interesse": bool(interested), "updated_at": datetime.now(timezone.utc)}},
+        doc = coll(PREFERENCES_COLLECTION, ensure_edital_indexes=False).find_one(
+            {"_id": PREFERENCES_DOC_ID}
         )
     except (RuntimeError, PyMongoError) as exc:
-        print(f"[MongoDB] Falha ao marcar interesse: {exc}")
+        print(f"[MongoDB] Falha ao ler preferencias de fontes: {exc}")
+        return set()
+
+    if not doc:
+        return set()
+
+    fontes = doc.get("fontes_seguidas") or []
+    return {str(f).strip().lower() for f in fontes if str(f).strip()}
+
+
+def set_source_followed(source_key: str, followed: bool) -> str:
+    """
+    Liga ou desliga uma fonte na lista de fontes seguidas pelo usuario.
+
+    Retorna: updated | disabled
+    """
+    op = "$addToSet" if followed else "$pull"
+    try:
+        coll(PREFERENCES_COLLECTION, ensure_edital_indexes=False).update_one(
+            {"_id": PREFERENCES_DOC_ID},
+            {
+                op: {"fontes_seguidas": source_key},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+            upsert=True,
+        )
+        return "updated"
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao atualizar preferencias de fontes: {exc}")
         return "disabled"
-
-    return "updated" if result.matched_count > 0 else "not_found"
-
-
-def list_interest(collection_name: Optional[str] = None) -> list[dict]:
-    """Lista os editais marcados como de interesse."""
-    try:
-        cursor = coll(collection_name).find(
-            {"interesse": True},
-            {"_id": 0, "url_pdf": 1, "resultado": 1, "data_limit_submissao": 1},
-        )
-        return list(cursor)
-    except (RuntimeError, PyMongoError) as exc:
-        print(f"[MongoDB] Falha ao listar interesses: {exc}")
-        return []
 
 
 def find_deadline_candidates(
@@ -201,19 +217,12 @@ def find_deadline_candidates(
     collection_name: Optional[str],
     start_at: datetime,
     end_at: datetime,
-    only_interest: bool = False,
 ) -> list[dict]:
-    """
-    Busca editais com status ok e data_limit_submissao na janela informada.
-
-    Quando only_interest=True, retorna apenas editais marcados como de interesse.
-    """
+    """Busca editais com status ok e data_limit_submissao na janela informada."""
     query = {
         "status": "ok",
         "data_limit_submissao": {"$gte": start_at, "$lte": end_at},
     }
-    if only_interest:
-        query["interesse"] = True
 
     try:
         cursor = coll(collection_name).find(

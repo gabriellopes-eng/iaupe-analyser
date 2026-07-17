@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from db.mongo import find_deadline_candidates, mark_deadline_step_sent
+from db.mongo import find_deadline_candidates, get_followed_sources, mark_deadline_step_sent
 from emails.deadline_reminder_email_notifier import DeadlineReminderEmailNotifier
 
 from .source_registry import get_source_config
@@ -32,9 +32,17 @@ def parse_reminder_steps(raw: str) -> list[int]:
 def run_deadline_reminders(
     source_key: str | None,
     steps_raw: str,
-    only_interest: bool = False,
 ) -> None:
     source_id, source = get_source_config(source_key)
+
+    followed = get_followed_sources()
+    if source_id not in followed:
+        print(
+            f"Lembretes | Fonte: {source['label']} ({source_id}) | "
+            "Fonte nao seguida pelo usuario, pulando."
+        )
+        return
+
     notifier = DeadlineReminderEmailNotifier()
     steps = parse_reminder_steps(steps_raw)
 
@@ -46,13 +54,11 @@ def run_deadline_reminders(
         collection_name=source["mongo_collection"],
         start_at=today_start,
         end_at=window_end,
-        only_interest=only_interest,
     )
 
     print(
         f"Lembretes | Fonte: {source['label']} ({source_id}) | "
         f"Janela: {today_start.date()} ate {window_end.date()} | "
-        f"Somente interesse: {'sim' if only_interest else 'nao'} | "
         f"Candidatos: {len(docs)}"
     )
 

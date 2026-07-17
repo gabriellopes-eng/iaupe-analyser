@@ -54,8 +54,18 @@ export interface Edital {
   titulo: string;
   deadline: string | null; // ISO 8601 (data limite de submissao)
   areas: string[];
-  interesse: boolean;
 }
+
+// Preferencias do usuario: quais fontes ele segue. Um unico documento global
+// (nao ha multi-usuario ainda), espelhado na collection `preferencias_usuario`.
+export type SourcePreferences = Record<SourceKey, boolean>;
+
+export const ALL_SOURCES_UNFOLLOWED: SourcePreferences = {
+  facepe: false,
+  cnpq: false,
+  finep: false,
+  capes: false,
+};
 
 export type DeadlineUrgency = "urgent" | "soon" | "calm" | "none";
 

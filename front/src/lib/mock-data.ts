@@ -1,4 +1,4 @@
-import { Edital, SourceKey, SOURCES, encodeId } from "@/domain/edital";
+import { Edital, SourceKey, SourcePreferences, SOURCES, encodeId } from "@/domain/edital";
 
 // Dados de demonstracao usados quando o MongoDB nao esta configurado.
 // Prazos sao relativos ao "hoje" para manter os niveis de urgencia sempre coerentes.
@@ -15,7 +15,6 @@ interface Seed {
   titulo: string;
   deadlineDays: number;
   areas: string[];
-  interesse: boolean;
 }
 
 const SEEDS: Seed[] = [
@@ -25,7 +24,6 @@ const SEEDS: Seed[] = [
     titulo: "Carta Convite MCTI/FINEP — Programa Tecnova 2026/2027",
     deadlineDays: 29,
     areas: ["Inovação", "Micro e pequenas empresas"],
-    interesse: true,
   },
   {
     source: "facepe",
@@ -33,7 +31,6 @@ const SEEDS: Seed[] = [
     titulo: "BFP — Bolsa de Fixação de Pesquisador 2026",
     deadlineDays: 4,
     areas: ["Formação de RH", "Todas as áreas"],
-    interesse: false,
   },
   {
     source: "cnpq",
@@ -41,7 +38,6 @@ const SEEDS: Seed[] = [
     titulo: "Chamada CNPq/MCTI nº 12/2026 — Bolsas de Produtividade em Pesquisa (PQ)",
     deadlineDays: 15,
     areas: ["Pesquisadores PQ", "Multidisciplinar"],
-    interesse: true,
   },
   {
     source: "facepe",
@@ -49,7 +45,6 @@ const SEEDS: Seed[] = [
     titulo: "APQ — Auxílio à Pesquisa e Programas Estratégicos 2026",
     deadlineDays: 7,
     areas: ["Projetos de pesquisa", "Doutores"],
-    interesse: false,
   },
   {
     source: "capes",
@@ -57,7 +52,6 @@ const SEEDS: Seed[] = [
     titulo: "Programa CAPES-PrInt — Internacionalização 2026",
     deadlineDays: 83,
     areas: ["Internacionalização", "Pós-graduação"],
-    interesse: false,
   },
   {
     source: "finep",
@@ -65,11 +59,10 @@ const SEEDS: Seed[] = [
     titulo: "Subvenção Econômica à Inovação — Chamada Pública 2026",
     deadlineDays: 42,
     areas: ["Subvenção", "Empresas"],
-    interesse: false,
   },
 ];
 
-// Estado em memoria para o mock persistir a marcacao durante a sessao do servidor.
+// Estado em memoria para o mock persistir durante a sessao do servidor.
 const mockState: Edital[] = SEEDS.map((seed) => {
   const meta = SOURCES[seed.source];
   return {
@@ -83,9 +76,16 @@ const mockState: Edital[] = SEEDS.map((seed) => {
     titulo: seed.titulo,
     deadline: inDays(seed.deadlineDays),
     areas: seed.areas,
-    interesse: seed.interesse,
   };
 });
+
+// Preferencias de fonte tambem ficam em memoria no modo mock.
+const mockPreferences: SourcePreferences = {
+  facepe: false,
+  cnpq: true,
+  finep: true,
+  capes: false,
+};
 
 export function shortRef(source: SourceKey, urlPdf: string): string {
   let hash = 0;
@@ -97,13 +97,15 @@ export function shortRef(source: SourceKey, urlPdf: string): string {
 }
 
 export function getMockEditais(): Edital[] {
-  // devolve copias para evitar mutacao acidental fora do setMockInterest
+  // devolve copias para evitar mutacao acidental do estado em memoria
   return mockState.map((e) => ({ ...e }));
 }
 
-export function setMockInterest(id: string, interested: boolean): boolean {
-  const found = mockState.find((e) => e.id === id);
-  if (!found) return false;
-  found.interesse = interested;
-  return true;
+export function getMockPreferences(): SourcePreferences {
+  return { ...mockPreferences };
+}
+
+export function setMockSourceFollowed(source: SourceKey, followed: boolean): SourcePreferences {
+  mockPreferences[source] = followed;
+  return { ...mockPreferences };
 }

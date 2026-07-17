@@ -88,13 +88,14 @@ Os arquivos `scraper_facepe.py`, `scraper_cnpq.py` e `scraper_capes.py` existem 
 ## Frontend (Next.js)
 
 Além do pipeline Python, o projeto tem um frontend em `front/` que implementa a
-funcionalidade de **editais de interesse**: o pesquisador marca os editais que acompanha e
-passa a receber os lembretes de prazo (D-30, D-15, D-7) **apenas dos selecionados**.
+funcionalidade de **fontes de interesse**: o pesquisador liga as fontes (FACEPE, CNPq,
+FINEP, CAPES) que acompanha e passa a receber os lembretes de prazo (D-30, D-15, D-7) de
+**todo edital dessas fontes**, sem precisar marcar edital por edital.
 
 - Stack: Next.js 14 (App Router) + React 18 + TypeScript, sem dependências de UI externas.
 - Módulo **independente** do pipeline. O único ponto de integração é o MongoDB
-  compartilhado: o front lê as collections `editais_*` e grava o campo `interesse`, o mesmo
-  usado no envio de lembretes com `--only-interest`.
+  compartilhado: o front lê as collections `editais_*` e grava a lista de fontes seguidas
+  na collection `preferencias_usuario`, a mesma que a pipeline lê ao enviar os lembretes.
 - Camadas separadas (`domain` -> `lib` -> `api`/`components`) para alta coesão e baixo
   acoplamento.
 - Roda em **modo demonstração (mock)** quando `MONGODB_URI` não está configurado, exibindo
@@ -273,10 +274,20 @@ O projeto possui um fluxo dedicado para notificações de prazo de submissão.
 
 Como funciona:
 
-1. Busca editais com `status=ok` e `data_limit_submissao` na janela dos marcos configurados.
-2. Calcula os dias restantes para o prazo.
-3. Envia e-mail quando o prazo bate com um marco (ex.: 30, 15, 7).
-4. Marca no MongoDB em `deadline_reminder.sent_steps` para evitar reenvio duplicado.
+1. Verifica se a fonte selecionada está na lista de fontes seguidas (`preferencias_usuario`,
+   a mesma que o toggle do front grava). Se não estiver, a execução é pulada.
+2. Busca editais com `status=ok` e `data_limit_submissao` na janela dos marcos configurados.
+3. Calcula os dias restantes para o prazo.
+4. Envia e-mail quando o prazo bate com um marco (ex.: 30, 15, 7).
+5. Marca no MongoDB em `deadline_reminder.sent_steps` para evitar reenvio duplicado.
+
+Gerenciar fontes seguidas pela linha de comando (sem depender do front):
+
+```powershell
+python .\pipeline\main.py --follow-source finep
+python .\pipeline\main.py --unfollow-source facepe
+python .\pipeline\main.py --list-sources
+```
 
 Execução local dos lembretes:
 

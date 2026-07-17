@@ -5,20 +5,16 @@ export type ViewMode = "all" | "mine";
 interface ToolbarProps {
   view: ViewMode;
   totalCount: number;
-  interestCount: number;
-  onlyInterest: boolean;
+  followedCount: number;
   onViewChange: (view: ViewMode) => void;
-  onOnlyInterestChange: (value: boolean) => void;
 }
 
-// Barra de controle: filtro Todos/Meus interesses + switch de lembretes.
+// Barra de filtro: Todos os editais x apenas os das fontes seguidas.
 export default function Toolbar({
   view,
   totalCount,
-  interestCount,
-  onlyInterest,
+  followedCount,
   onViewChange,
-  onOnlyInterestChange,
 }: ToolbarProps) {
   return (
     <div className="toolbar">
@@ -39,24 +35,8 @@ export default function Toolbar({
           type="button"
           onClick={() => onViewChange("mine")}
         >
-          Meus interesses <span className="count">{interestCount}</span>
+          Minhas fontes <span className="count">{followedCount}</span>
         </button>
-      </div>
-
-      <div className="switch-wrap">
-        <span className="switch-label">
-          <b>Lembretes só dos interesses</b>
-          <br />
-          filtra o envio de e-mails
-        </span>
-        <button
-          className="switch"
-          type="button"
-          role="switch"
-          aria-checked={onlyInterest}
-          aria-label="Enviar lembretes apenas dos editais de interesse"
-          onClick={() => onOnlyInterestChange(!onlyInterest)}
-        />
       </div>
     </div>
   );

@@ -38,14 +38,6 @@ export function BellIcon() {
   );
 }
 
-export function OutlineStarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3.5l2.6 5.3 5.9.5-4.4 3.9 1.3 5.7L12 16l-5.4 2.8 1.3-5.7L3.5 9.3l5.9-.5z" />
-    </svg>
-  );
-}
-
 export function SunIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
