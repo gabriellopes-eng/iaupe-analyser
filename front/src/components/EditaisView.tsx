@@ -116,7 +116,7 @@ export default function EditaisView({ initialEditais, live }: EditaisViewProps) 
     const short = titulo.length > 40 ? `${titulo.slice(0, 37)}...` : titulo;
     setToast({
       message: added
-        ? `Marcado: ${short} — você receberá os lembretes`
+        ? `Marcado: ${short}. Você receberá os lembretes`
         : `Removido: ${short}`,
       tone: added ? "gold" : "muted",
       show: true,
@@ -133,7 +133,7 @@ export default function EditaisView({ initialEditais, live }: EditaisViewProps) 
         </h1>
         <p>
           Marque os editais específicos que você acompanha. Os lembretes de prazo (D-30, D-15 e
-          D-7) chegam por e-mail <b>somente para os selecionados</b> — sem o ruído de todas as
+          D-7) chegam por e-mail <b>somente para os selecionados</b>, sem o ruído de todas as
           chamadas abertas.
         </p>
       </section>
