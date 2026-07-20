@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from db.mongo import find_deadline_candidates, get_followed_sources, mark_deadline_step_sent
+from db.mongo import find_deadline_candidates, mark_deadline_step_sent
 from emails.deadline_reminder_email_notifier import DeadlineReminderEmailNotifier
 
 from .source_registry import get_source_config
@@ -35,14 +35,6 @@ def run_deadline_reminders(
 ) -> None:
     source_id, source = get_source_config(source_key)
 
-    followed = get_followed_sources()
-    if source_id not in followed:
-        print(
-            f"Lembretes | Fonte: {source['label']} ({source_id}) | "
-            "Fonte nao seguida pelo usuario, pulando."
-        )
-        return
-
     notifier = DeadlineReminderEmailNotifier()
     steps = parse_reminder_steps(steps_raw)
 
@@ -62,8 +54,8 @@ def run_deadline_reminders(
         f"Candidatos: {len(docs)}"
     )
 
-    if not notifier.is_enabled():
-        print("Lembretes desativados: RECIPIENT_EMAIL nao configurado.")
+    if not notifier.is_smtp_configured():
+        print("Lembretes desativados: SMTP_USER/SMTP_PASS nao configurados.")
         return
 
     sent_count = 0
@@ -96,17 +88,27 @@ def run_deadline_reminders(
         if not pdf_url:
             continue
 
+        # cada edital tem sua propria lista de interessados (e-mails que marcaram
+        # aquele edital especifico); sem ninguem inscrito, nao ha o que notificar.
+        interessados = [str(e).strip() for e in (doc.get("interessados") or []) if str(e).strip()]
+        if not interessados:
+            continue
+
         resultado = doc.get("resultado") or {}
 
         try:
-            notifier.notify_deadline(
-                source_label=source["label"],
-                source_id=source_id,
-                pdf_url=pdf_url,
-                saved_json=resultado,
-                deadline=deadline,
-                days_left=days_left,
-            )
+            # um e-mail por vez, endereçado individualmente: uma pessoa que
+            # acompanha este edital nao deve ver o endereco de outra.
+            for recipient_email in interessados:
+                notifier.notify_deadline(
+                    recipient_email=recipient_email,
+                    source_label=source["label"],
+                    source_id=source_id,
+                    pdf_url=pdf_url,
+                    saved_json=resultado,
+                    deadline=deadline,
+                    days_left=days_left,
+                )
 
             marked = mark_deadline_step_sent(
                 collection_name=source["mongo_collection"],
@@ -116,9 +118,9 @@ def run_deadline_reminders(
             if marked:
                 sent_count += 1
 
-            print(f"Lembrete enviado D-{days_left}: {pdf_url}")
+            print(f"Lembrete enviado D-{days_left} para {len(interessados)} interessado(s): {pdf_url}")
 
         except Exception as exc:
             print(f"Falha no lembrete D-{days_left} para {pdf_url}: {exc}")
 
-    print(f"Total de lembretes enviados: {sent_count}")
+    print(f"Total de editais notificados: {sent_count}")

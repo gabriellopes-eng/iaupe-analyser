@@ -13,15 +13,23 @@ from .smtp_email_service import SmtpEmailService
 
 
 class DeadlineReminderEmailNotifier:
-    """Envia notificacao de prazo de submissao (D-30, D-15, D-7)."""
+    """
+    Envia notificacao de prazo de submissao (D-30, D-15, D-7).
 
-    def __init__(self, test_recipient: str | None = None) -> None:
+    Cada edital tem sua propria lista de interessados (pessoas que marcaram aquele
+    edital especifico pelo e-mail delas, sem autenticacao). O destinatario e sempre
+    explicito por chamada (um e-mail por vez) para nao expor o endereco de uma
+    pessoa para outra que tambem acompanha o mesmo edital.
+    """
+
+    def __init__(self) -> None:
         load_dotenv(override=True)
-        self.test_recipient = (test_recipient or os.getenv("RECIPIENT_EMAIL") or "").strip()
         self._use_case: SendEmailUseCase | None = None
 
-    def is_enabled(self) -> bool:
-        return bool(self.test_recipient)
+    def is_smtp_configured(self) -> bool:
+        return bool((os.getenv("SMTP_USER") or "").strip()) and bool(
+            (os.getenv("SMTP_PASS") or "").strip()
+        )
 
     def resolve_edital_titulo(self, saved_json: dict) -> str:
         titulo = str(saved_json.get("titulo") or saved_json.get("titulo_edital") or "").strip()
@@ -32,6 +40,7 @@ class DeadlineReminderEmailNotifier:
     def notify_deadline(
         self,
         *,
+        recipient_email: str,
         source_label: str,
         source_id: str,
         pdf_url: str,
@@ -39,7 +48,8 @@ class DeadlineReminderEmailNotifier:
         deadline: datetime,
         days_left: int,
     ) -> None:
-        if not self.is_enabled():
+        recipient_email = (recipient_email or "").strip()
+        if not recipient_email or not self.is_smtp_configured():
             return
 
         if self._use_case is None:
@@ -61,7 +71,7 @@ class DeadlineReminderEmailNotifier:
 
         self._use_case.execute(
             {
-                "to": self.test_recipient,
+                "to": recipient_email,
                 "subject": subject,
                 "html": html,
             }

@@ -1,6 +1,6 @@
 import argparse
 import os
-from db.mongo import get_followed_sources, set_source_followed
+from db.mongo import add_interessado, list_interessados, remove_interessado
 from orchestration.deadline_reminder_runner import run_deadline_reminders
 from orchestration.pipeline_runner import run_pipeline
 from orchestration.settings import parse_limit
@@ -39,19 +39,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Marcos de lembrete separados por virgula. Ex: 30,15,7",
     )
     parser.add_argument(
-        "--follow-source",
-        metavar="FONTE",
-        help="Liga uma fonte (facepe/cnpq/finep/capes): passa a receber lembretes",
+        "--url",
+        metavar="URL_PDF",
+        help="URL do PDF do edital (usado com --add-interessado/--remove-interessado/--list-interessados)",
     )
     parser.add_argument(
-        "--unfollow-source",
-        metavar="FONTE",
-        help="Desliga uma fonte: deixa de receber lembretes dela",
+        "--email",
+        metavar="EMAIL",
+        help="E-mail da pessoa (usado com --add-interessado/--remove-interessado)",
     )
     parser.add_argument(
-        "--list-sources",
+        "--add-interessado",
         action="store_true",
-        help="Lista as fontes atualmente seguidas",
+        help="Inscreve --email no edital --url (fonte definida por --source)",
+    )
+    parser.add_argument(
+        "--remove-interessado",
+        action="store_true",
+        help="Remove --email do edital --url",
+    )
+    parser.add_argument(
+        "--list-interessados",
+        action="store_true",
+        help="Lista os e-mails inscritos no edital --url",
     )
     return parser
 
@@ -62,24 +72,34 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        if args.follow_source or args.unfollow_source or args.list_sources:
-            # fluxo de preferencias: ligar/desligar/listar fontes seguidas
-            if args.follow_source:
-                source_id, source = get_source_config(args.follow_source)
-                status = set_source_followed(source_id, followed=True)
-                print(f"Ligar fonte: {status} -> {source['label']} ({source_id})")
+        if args.add_interessado or args.remove_interessado or args.list_interessados:
+            # fluxo de interessados: inscrever/remover/listar e-mails por edital especifico
+            if not args.url:
+                print("Informe --url com a URL do PDF do edital.")
+                raise SystemExit(1)
 
-            if args.unfollow_source:
-                source_id, source = get_source_config(args.unfollow_source)
-                status = set_source_followed(source_id, followed=False)
-                print(f"Desligar fonte: {status} -> {source['label']} ({source_id})")
+            source_id, source = get_source_config(args.source)
+            collection = source["mongo_collection"]
 
-            if args.list_sources:
-                followed = get_followed_sources()
-                print(f"Fontes seguidas ({len(followed)}):")
-                for source_id, source in SOURCE_REGISTRY.items():
-                    marca = "x" if source_id in followed else " "
-                    print(f"[{marca}] {source_id} - {source['label']}")
+            if args.add_interessado:
+                if not args.email:
+                    print("Informe --email para inscrever.")
+                    raise SystemExit(1)
+                status = add_interessado(args.url, collection, args.email)
+                print(f"Inscrever interessado ({source_id}): {status} -> {args.email}")
+
+            if args.remove_interessado:
+                if not args.email:
+                    print("Informe --email para remover.")
+                    raise SystemExit(1)
+                status = remove_interessado(args.url, collection, args.email)
+                print(f"Remover interessado ({source_id}): {status} -> {args.email}")
+
+            if args.list_interessados:
+                emails = list_interessados(args.url, collection)
+                print(f"Interessados em {args.url} ({len(emails)}):")
+                for email in emails:
+                    print(f"- {email}")
         elif args.run_reminders:
             run_deadline_reminders(
                 source_key=args.source,

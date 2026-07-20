@@ -6,22 +6,22 @@ import {
   deadlineUrgency,
   formatPtBrDate,
 } from "@/domain/edital";
-import { BellIcon, ClockIcon, InfoIcon } from "@/components/icons";
+import { BellIcon, ClockIcon, OutlineStarIcon, StarIcon } from "@/components/icons";
 
 interface EditalCardProps {
   edital: Edital;
-  followed: boolean;
+  onToggle: (edital: Edital) => void;
 }
 
-// Cartao de edital: somente apresentacao. Quem decide notificar ou nao e o
-// toggle da fonte (FontesToggle), nao o card individual.
-export default function EditalCard({ edital, followed }: EditalCardProps) {
+// Cartao de edital: apresenta os dados e delega a marcacao de interesse (por
+// e-mail, sem autenticacao) ao container.
+export default function EditalCard({ edital, onToggle }: EditalCardProps) {
   const days = daysUntil(edital.deadline);
   const urgency = deadlineUrgency(days);
   const daysLabel = days === null ? "-" : `${days}d`;
 
   return (
-    <article className="card" data-followed={followed}>
+    <article className="card" data-interest={edital.interested}>
       <div className="card-head">
         <div>
           <span className="src-chip">
@@ -30,6 +30,21 @@ export default function EditalCard({ edital, followed }: EditalCardProps) {
           </span>
           <div className="ref">Ref: {edital.ref}</div>
         </div>
+        <button
+          className="star"
+          type="button"
+          aria-pressed={edital.interested}
+          aria-label={edital.interested ? "Remover dos interesses" : "Marcar como interesse"}
+          onClick={(e) => {
+            const btn = e.currentTarget;
+            btn.classList.remove("pop");
+            void btn.offsetWidth;
+            btn.classList.add("pop");
+            onToggle(edital);
+          }}
+        >
+          <StarIcon />
+        </button>
       </div>
 
       <h3 className="title">{edital.titulo}</h3>
@@ -54,13 +69,13 @@ export default function EditalCard({ edital, followed }: EditalCardProps) {
       </div>
 
       <div className="status-line">
-        {followed ? (
+        {edital.interested ? (
           <>
-            <BellIcon /> Você recebe lembretes de {edital.sourceLabel}
+            <BellIcon /> Você recebe os lembretes deste edital
           </>
         ) : (
           <>
-            <InfoIcon /> Ligue {edital.sourceLabel} no topo para receber lembretes
+            <OutlineStarIcon /> Marque para receber lembretes de prazo
           </>
         )}
       </div>

@@ -1,14 +1,15 @@
 # IAUPE Analyzer — Front (Next.js)
 
-Frontend da funcionalidade **"fontes de interesse"**: o pesquisador liga as fontes
-(FACEPE, CNPq, FINEP, CAPES) que acompanha e passa a receber lembretes de prazo
-(D-30, D-15, D-7) de **todo edital dessas fontes**, sem precisar marcar edital por edital.
+Frontend da funcionalidade **"editais de interesse"**: o pesquisador digita só o
+próprio e-mail (sem cadastro, sem senha) e marca os editais específicos que quer
+acompanhar. Os lembretes de prazo (D-30, D-15, D-7) chegam individualmente para cada
+e-mail, só dos editais que aquela pessoa marcou — nunca dos que outra pessoa marcou.
 
 Este módulo é independente da pipeline Python. O **único ponto de integração** é o
 MongoDB compartilhado: o front lê as collections `editais_facepe`, `editais_cnpq`,
-`editais_finep` e `editais_capes` para exibir os editais, e grava a lista de fontes
-seguidas na collection `preferencias_usuario` — a mesma que a pipeline lê antes de
-enviar os lembretes de cada fonte.
+`editais_finep` e `editais_capes` para exibir os editais, e grava o e-mail da pessoa
+no campo `interessados` do edital específico marcado — o mesmo campo que a pipeline
+lê para saber quem notificar quando o prazo se aproxima.
 
 ## Stack
 
@@ -50,22 +51,26 @@ Se a conexão falhar, o app registra o erro no console e volta para o mock, sem 
 Camadas em `src/`, cada uma dependendo apenas da camada de baixo:
 
 ```
-domain/        Tipos e regras puras (Edital, preferencias de fonte, urgência de prazo, id).
+domain/        Tipos e regras puras (Edital, validação de e-mail, urgência de prazo, id).
 lib/           Acesso a dados: cliente Mongo, dados mock e o repositório (fallback).
 app/api/       Endpoints HTTP finos, delegando ao repositório.
 components/    UI: apresentacionais + o container interativo EditaisView.
 app/           layout + page (Server Component que carrega os dados).
 ```
 
-- **`domain/edital.ts`** — contrato compartilhado (`Edital`), `SourcePreferences`,
-  `daysUntil`, `deadlineUrgency`, `formatPtBrDate`, `encodeId`, e os metadados das
-  fontes (`SOURCES`).
+- **`domain/edital.ts`** — contrato compartilhado (`Edital`, com o campo `interested`
+  relativo a um e-mail específico), `isValidEmail`, `normalizeEmail`, `daysUntil`,
+  `deadlineUrgency`, `formatPtBrDate`, `encodeId`/`decodeId`, e os metadados das
+  fontes (`SOURCES`, usado só para exibição, não para seleção).
 - **`lib/editais-repository.ts`** — única porta de acesso a dados. Decide entre Mongo e mock.
-- **`app/api/editais`** — `GET` lista agregada das quatro fontes.
-- **`app/api/preferencias`** — `GET` lê as fontes seguidas, `PATCH` liga/desliga uma fonte.
-- **`components/EditaisView.tsx`** — estado da tela, filtro Todos/Minhas fontes e o
-  toggle de fonte com atualização otimista (reverte se a API falhar).
-- **`components/FontesToggle.tsx`** — painel com as 4 chaves liga/desliga, uma por fonte.
+- **`app/api/editais`** — `GET` lista agregada das quatro fontes; aceita `?email=` para
+  calcular `interested` por edital.
+- **`app/api/editais/[id]/interest`** — `PATCH` marca/desmarca um edital específico
+  para um e-mail (`{ "email": "...", "interested": boolean }`).
+- **`components/EditaisView.tsx`** — estado da tela, identificação por e-mail, filtro
+  Todos/Meus interesses e a marcação por edital com atualização otimista.
+- **`components/EmailGate.tsx`** — captura o e-mail (sem autenticação) e guarda no
+  navegador (`localStorage`) para as próximas visitas.
 
 O `id` de cada edital é a `url_pdf` codificada em base64url, para servir de parâmetro de rota.
 
@@ -74,13 +79,14 @@ O `id` de cada edital é a `url_pdf` codificada em base64url, para servir de par
 ### 1. Carregamento da página (servidor)
 
 `app/page.tsx` é um **Server Component** com `export const dynamic = "force-dynamic"`
-(renderiza a cada requisição, sem cache). Ele carrega os dados no servidor e entrega ao
-container interativo:
+(renderiza a cada requisição, sem cache). O servidor não tem acesso ao `localStorage`
+do navegador, então a primeira carga sempre vem sem e-mail (`interested: false` em
+tudo); o client component re-consulta com o e-mail assim que o lê do navegador:
 
 ```
 page.tsx (servidor)
-  → listEditais() + getPreferences()               // repositório decide a fonte dos dados
-  → <EditaisView initialEditais initialPreferences live> // live = isMongoConfigured()
+  → listEditais(null)                     // repositório decide a fonte dos dados
+  → <EditaisView initialEditais live>     // live = isMongoConfigured()
 ```
 
 O booleano `live` controla o selo `DEMO` / `AO VIVO` no topo.
@@ -89,72 +95,81 @@ O booleano `live` controla o selo `DEMO` / `AO VIVO` no topo.
 
 Toda leitura passa por `lib/editais-repository.ts`, a **única porta de dados**:
 
-- **Sem `MONGODB_URI`** → devolve o mock de `lib/mock-data.ts` (modo `DEMO`).
+- **Sem `MONGODB_URI`** → devolve o mock de `lib/mock-data.ts` (modo `DEMO`), calculando
+  `interested` a partir do e-mail informado.
 - **Com `MONGODB_URI`** → conecta no Mongo, varre as collections
   `editais_facepe/cnpq/finep/capes`, filtra `status=ok`, mapeia cada documento para o
-  tipo `Edital` e ordena pelo prazo mais próximo. As preferências vêm de um único
-  documento na collection `preferencias_usuario`.
+  tipo `Edital` e calcula `interested` conferindo se o e-mail está no array
+  `interessados` daquele documento — **sem nunca devolver a lista inteira para o
+  navegador** (privacidade: uma pessoa não pode ver quem mais acompanha o mesmo edital).
 - **Se a conexão falhar** → registra o erro no console e cai no mock. A tela nunca quebra.
 
-### 3. Estado e renderização (navegador)
+### 3. Identificação por e-mail (sem autenticação)
 
-`components/EditaisView.tsx` é um **Client Component** que mantém a lista de editais e as
-preferências de fonte em `useState`. Delas derivam, via `useMemo`:
-
-- `followedList` — editais cuja fonte está ligada;
-- `followedSourcesCount` — quantas das 4 fontes estão ligadas (alimenta o KPI dourado);
-- `urgentFollowed` — dentre os seguidos, quantos têm prazo em ≤ 7 dias (KPI vermelho);
-- `visible` — todos ou apenas os das fontes seguidas, conforme o filtro **Todos / Minhas fontes**.
-
-Cada `EditalCard` é somente apresentação: mostra se a fonte dele está ligada (borda/selo
-dourado) e calcula a urgência do prazo com as regras puras do domínio (`daysUntil` +
-`deadlineUrgency`): **≤ 7 dias** = urgente (vermelho), **≤ 20** = próximo (âmbar), acima
-disso = calmo (verde).
-
-### 4. Ligar/desligar uma fonte (atualização otimista)
-
-Ao clicar numa chave do `FontesToggle`:
+`components/EmailGate.tsx` pede só o e-mail — sem senha, sem verificação. Ao confirmar:
 
 ```
-toggleSource(source)
+handleSetEmail(email)
+  → localStorage.setItem("iaupe:email", email)
+  → refetch em /api/editais?email=... (recalcula interested para esse e-mail)
+```
+
+Nas próximas visitas (mesmo navegador), `EditaisView` lê o e-mail salvo automaticamente
+via `useEffect` e já busca o estado correto — não precisa digitar de novo. Um botão
+"trocar e-mail" limpa o `localStorage` e zera os `interested` localmente.
+
+### 4. Estado e renderização (navegador)
+
+`components/EditaisView.tsx` é um **Client Component** que mantém a lista de editais e
+o e-mail atual em `useState`. Deles derivam, via `useMemo`:
+
+- `interestList` — editais marcados como de interesse pelo e-mail atual;
+- `urgentInterest` — dentre os marcados, quantos têm prazo em ≤ 7 dias (KPI vermelho);
+- `visible` — todos ou apenas os marcados, conforme o filtro **Todos / Meus interesses**.
+
+Cada `EditalCard` calcula a urgência do prazo com as regras puras do domínio
+(`daysUntil` + `deadlineUrgency`): **≤ 7 dias** = urgente (vermelho), **≤ 20** = próximo
+(âmbar), acima disso = calmo (verde).
+
+### 5. Marcar interesse num edital (atualização otimista)
+
+Ao clicar na estrela de um card (exige e-mail já identificado):
+
+```
+toggle(edital)
   → atualiza o estado na hora (otimista) + exibe toast
-  → PATCH /api/preferencias  { "source": "capes", "followed": true | false }
+  → PATCH /api/editais/:id/interest  { "email": "...", "interested": true | false }
   → se a API falhar: reverte o estado + toast de erro
 ```
 
-A interface responde instantaneamente e só desfaz a mudança se o backend recusar. Ligar
-uma fonte afeta **todos** os editais dela de uma vez — não há mais marcação por edital
-individual.
+Sem e-mail identificado, o clique só mostra um aviso pedindo para digitar o e-mail —
+não marca nada.
 
-### 5. Camada de API
+### 6. Camada de API
 
 As rotas em `app/api/` são finas — apenas delegam ao repositório:
 
-- `GET /api/editais` → `listEditais()`
-- `GET /api/preferencias` → `getPreferences()`
-- `PATCH /api/preferencias` → `setSourceFollowed(source, followed)` (400 se a fonte for inválida)
+- `GET /api/editais?email=...` → `listEditais(email)`
+- `PATCH /api/editais/:id/interest` → `setEditalInterest(id, email, interested)`
+  (400 se o e-mail for inválido, 404 se o edital não existir)
 
-### 6. Integração com a pipeline Python
+### 7. Integração com a pipeline Python
 
 Os dois módulos **nunca se chamam diretamente**. O único elo é o schema do MongoDB: o
-documento `{ _id: "fontes_seguidas", fontes_seguidas: [...] }` que este front grava na
-collection `preferencias_usuario` é o mesmo que a pipeline lê (`get_followed_sources()`)
-antes de enviar os lembretes de cada fonte — se a fonte não estiver na lista, a pipeline
-pula o envio dela inteiramente.
+campo `interessados` (lista de e-mails) que este front grava em cada documento de
+edital é o mesmo que a pipeline lê antes de enviar os lembretes de prazo — e manda um
+e-mail individual para cada endereço da lista, nunca em cópia/Cc entre si.
 
-### 7. Tema claro/escuro
+### 8. Tema claro/escuro
 
-`ThemeToggle` carimba `data-theme="light" | "dark"` no elemento raiz, que sobrepõe a
-media query `prefers-color-scheme` nos dois sentidos. As cores são todas variáveis CSS
-(tokens) definidas em `app/globals.css`.
+Removido — o app sempre abre no tema claro (sem toggle).
 
 ## Endpoints
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET | `/api/editais` | Lista agregada de editais (`status=ok`) das quatro fontes |
-| GET | `/api/preferencias` | Fontes atualmente seguidas |
-| PATCH | `/api/preferencias` | Liga/desliga uma fonte. Body: `{ "source": "capes", "followed": true }` |
+| GET | `/api/editais?email=...` | Lista agregada de editais (`status=ok`) das quatro fontes, com `interested` calculado por e-mail |
+| PATCH | `/api/editais/:id/interest` | Marca/desmarca um edital para um e-mail. Body: `{ "email": "...", "interested": true }` |
 
 ## Scripts
 
@@ -166,6 +181,7 @@ npm run start   # sobe o build de producao
 
 ## Status
 
-Protótipo funcional: seleção por **fonte** (não mais por edital individual). Roda em modo
-mock por padrão; a integração com o Mongo usa o mesmo schema da pipeline — falta apenas
-apontar `MONGODB_URI` para o cluster com credenciais válidas.
+Protótipo funcional: seleção por **edital específico**, identificação só por e-mail
+(sem autenticação). Testado de ponta a ponta contra o Mongo real: dois e-mails
+diferentes marcam editais diferentes de forma independente, sem um ver o interesse do
+outro. Roda em modo mock quando `MONGODB_URI` não está configurado.

@@ -1,4 +1,4 @@
-import { Edital, SourceKey, SourcePreferences, SOURCES, encodeId } from "@/domain/edital";
+import { Edital, SourceKey, SOURCES, encodeId, normalizeEmail } from "@/domain/edital";
 
 // Dados de demonstracao usados quando o MongoDB nao esta configurado.
 // Prazos sao relativos ao "hoje" para manter os niveis de urgencia sempre coerentes.
@@ -15,6 +15,7 @@ interface Seed {
   titulo: string;
   deadlineDays: number;
   areas: string[];
+  interessados?: string[];
 }
 
 const SEEDS: Seed[] = [
@@ -24,6 +25,7 @@ const SEEDS: Seed[] = [
     titulo: "Carta Convite MCTI/FINEP - Programa Tecnova 2026/2027",
     deadlineDays: 29,
     areas: ["Inovação", "Micro e pequenas empresas"],
+    interessados: ["demo@upe.br"],
   },
   {
     source: "facepe",
@@ -62,30 +64,33 @@ const SEEDS: Seed[] = [
   },
 ];
 
+interface MockRecord {
+  edital: Omit<Edital, "interested">;
+  interessados: Set<string>;
+}
+
 // Estado em memoria para o mock persistir durante a sessao do servidor.
-const mockState: Edital[] = SEEDS.map((seed) => {
+// Cada edital guarda sua propria lista de e-mails interessados, igual ao
+// schema real (`interessados` no documento do edital, sem multi-usuario
+// autenticado - so o e-mail digitado identifica a pessoa).
+const mockState: MockRecord[] = SEEDS.map((seed) => {
   const meta = SOURCES[seed.source];
   return {
-    id: encodeId(seed.urlPdf),
-    urlPdf: seed.urlPdf,
-    source: seed.source,
-    sourceLabel: meta.label,
-    orgao: meta.orgao,
-    color: meta.color,
-    ref: shortRef(seed.source, seed.urlPdf),
-    titulo: seed.titulo,
-    deadline: inDays(seed.deadlineDays),
-    areas: seed.areas,
+    edital: {
+      id: encodeId(seed.urlPdf),
+      urlPdf: seed.urlPdf,
+      source: seed.source,
+      sourceLabel: meta.label,
+      orgao: meta.orgao,
+      color: meta.color,
+      ref: shortRef(seed.source, seed.urlPdf),
+      titulo: seed.titulo,
+      deadline: inDays(seed.deadlineDays),
+      areas: seed.areas,
+    },
+    interessados: new Set((seed.interessados || []).map(normalizeEmail)),
   };
 });
-
-// Preferencias de fonte tambem ficam em memoria no modo mock.
-const mockPreferences: SourcePreferences = {
-  facepe: false,
-  cnpq: true,
-  finep: true,
-  capes: false,
-};
 
 export function shortRef(source: SourceKey, urlPdf: string): string {
   let hash = 0;
@@ -96,16 +101,22 @@ export function shortRef(source: SourceKey, urlPdf: string): string {
   return `${SOURCES[source].label.toUpperCase()}-${code}`;
 }
 
-export function getMockEditais(): Edital[] {
-  // devolve copias para evitar mutacao acidental do estado em memoria
-  return mockState.map((e) => ({ ...e }));
+export function getMockEditais(email: string | null): Edital[] {
+  const normalized = email ? normalizeEmail(email) : null;
+  return mockState.map((record) => ({
+    ...record.edital,
+    interested: normalized ? record.interessados.has(normalized) : false,
+  }));
 }
 
-export function getMockPreferences(): SourcePreferences {
-  return { ...mockPreferences };
-}
-
-export function setMockSourceFollowed(source: SourceKey, followed: boolean): SourcePreferences {
-  mockPreferences[source] = followed;
-  return { ...mockPreferences };
+export function setMockInterest(id: string, email: string, interested: boolean): boolean {
+  const record = mockState.find((r) => r.edital.id === id);
+  if (!record) return false;
+  const normalized = normalizeEmail(email);
+  if (interested) {
+    record.interessados.add(normalized);
+  } else {
+    record.interessados.delete(normalized);
+  }
+  return true;
 }

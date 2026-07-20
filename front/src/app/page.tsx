@@ -1,17 +1,14 @@
 import EditaisView from "@/components/EditaisView";
-import { getPreferences, listEditais } from "@/lib/editais-repository";
+import { listEditais } from "@/lib/editais-repository";
 import { isMongoConfigured } from "@/lib/mongo";
 
-// Server Component: carrega editais e preferencias de fonte no servidor.
+// Server Component: carrega a vitrine de editais no servidor. O e-mail do
+// usuario so existe no navegador (localStorage, sem login) - por isso o
+// carregamento inicial vem sempre com `interested: false`, e o client
+// component re-consulta com o e-mail assim que le o localStorage.
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const [editais, preferences] = await Promise.all([listEditais(), getPreferences()]);
-  return (
-    <EditaisView
-      initialEditais={editais}
-      initialPreferences={preferences}
-      live={isMongoConfigured()}
-    />
-  );
+  const editais = await listEditais(null);
+  return <EditaisView initialEditais={editais} live={isMongoConfigured()} />;
 }

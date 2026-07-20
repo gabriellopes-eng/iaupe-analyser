@@ -54,18 +54,21 @@ export interface Edital {
   titulo: string;
   deadline: string | null; // ISO 8601 (data limite de submissao)
   areas: string[];
+  // true se o e-mail atual (identificado no navegador, sem login) esta na lista
+  // de interessados deste edital especifico. Nunca inclui a lista de e-mails
+  // inteira aqui - so o booleano relativo a quem esta pedindo.
+  interested: boolean;
 }
 
-// Preferencias do usuario: quais fontes ele segue. Um unico documento global
-// (nao ha multi-usuario ainda), espelhado na collection `preferencias_usuario`.
-export type SourcePreferences = Record<SourceKey, boolean>;
+// Validacao simples de formato, sem verificar se o endereco existe de fato -
+// o cadastro e sem autenticacao, por design (so digitar o e-mail).
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 
-export const ALL_SOURCES_UNFOLLOWED: SourcePreferences = {
-  facepe: false,
-  cnpq: false,
-  finep: false,
-  capes: false,
-};
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
 
 export type DeadlineUrgency = "urgent" | "soon" | "calm" | "none";
 
