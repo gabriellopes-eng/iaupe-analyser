@@ -88,14 +88,20 @@ Os arquivos `scraper_facepe.py`, `scraper_cnpq.py` e `scraper_capes.py` existem 
 ## Frontend (Next.js)
 
 Além do pipeline Python, o projeto tem um frontend em `front/` que implementa a
-funcionalidade de **fontes de interesse**: o pesquisador liga as fontes (FACEPE, CNPq,
-FINEP, CAPES) que acompanha e passa a receber os lembretes de prazo (D-30, D-15, D-7) de
-**todo edital dessas fontes**, sem precisar marcar edital por edital.
+funcionalidade de **editais de interesse**: o pesquisador digita só o próprio e-mail
+(sem cadastro, sem senha) e marca os editais específicos que quer acompanhar. Os
+lembretes de prazo (D-30, D-15, D-7) chegam individualmente para cada e-mail, só dos
+editais que aquela pessoa marcou.
 
 - Stack: Next.js 14 (App Router) + React 18 + TypeScript, sem dependências de UI externas.
 - Módulo **independente** do pipeline. O único ponto de integração é o MongoDB
-  compartilhado: o front lê as collections `editais_*` e grava a lista de fontes seguidas
-  na collection `preferencias_usuario`, a mesma que a pipeline lê ao enviar os lembretes.
+  compartilhado: o front lê as collections `editais_*` e grava o e-mail da pessoa no
+  campo `interessados` do edital específico marcado — mesmo campo que a pipeline lê
+  para saber quem notificar.
+- Identificação sem autenticação: o e-mail digitado fica salvo no navegador
+  (localStorage), sem senha nem verificação. Cada edital guarda sua própria lista de
+  e-mails interessados; a API nunca expõe essa lista inteira para o navegador, só
+  responde "esse e-mail específico está inscrito nesse edital?".
 - Camadas separadas (`domain` -> `lib` -> `api`/`components`) para alta coesão e baixo
   acoplamento.
 - Roda em **modo demonstração (mock)** quando `MONGODB_URI` não está configurado, exibindo
@@ -276,19 +282,20 @@ O projeto possui um fluxo dedicado para notificações de prazo de submissão.
 
 Como funciona:
 
-1. Verifica se a fonte selecionada está na lista de fontes seguidas (`preferencias_usuario`,
-   a mesma que o toggle do front grava). Se não estiver, a execução é pulada.
-2. Busca editais com `status=ok` e `data_limit_submissao` na janela dos marcos configurados.
-3. Calcula os dias restantes para o prazo.
-4. Envia e-mail quando o prazo bate com um marco (ex.: 30, 15, 7).
+1. Busca editais com `status=ok` e `data_limit_submissao` na janela dos marcos configurados.
+2. Calcula os dias restantes para o prazo.
+3. Para cada edital com prazo batendo, olha a lista `interessados` (e-mails que
+   marcaram aquele edital específico, gravada pelo front). Sem ninguém inscrito, pula.
+4. Envia um e-mail **individual** para cada interessado (nunca em cópia/Cc — uma
+   pessoa não vê o e-mail de outra que também acompanha o mesmo edital).
 5. Marca no MongoDB em `deadline_reminder.sent_steps` para evitar reenvio duplicado.
 
-Gerenciar fontes seguidas pela linha de comando (sem depender do front):
+Gerenciar interessados por edital pela linha de comando (sem depender do front):
 
 ```powershell
-python .\pipeline\main.py --follow-source finep
-python .\pipeline\main.py --unfollow-source facepe
-python .\pipeline\main.py --list-sources
+python .\pipeline\main.py --source facepe --add-interessado --url "https://.../edital.pdf" --email "pessoa@exemplo.com"
+python .\pipeline\main.py --source facepe --remove-interessado --url "https://.../edital.pdf" --email "pessoa@exemplo.com"
+python .\pipeline\main.py --source facepe --list-interessados --url "https://.../edital.pdf"
 ```
 
 Execução local dos lembretes:

@@ -2,28 +2,13 @@ import {
   Edital,
   SOURCES,
   SourceKey,
-  SourcePreferences,
-  ALL_SOURCES_UNFOLLOWED,
   daysUntil,
+  decodeId,
   encodeId,
+  normalizeEmail,
 } from "@/domain/edital";
 import { getDb, isMongoConfigured } from "@/lib/mongo";
-import {
-  getMockEditais,
-  getMockPreferences,
-  setMockSourceFollowed,
-  shortRef,
-} from "@/lib/mock-data";
-
-// Preferencias de fonte: documento unico (sem multi-usuario ainda) na collection
-// `preferencias_usuario`, com o mesmo shape que a pipeline Python le/escreve.
-const PREFERENCES_COLLECTION = "preferencias_usuario";
-const PREFERENCES_DOC_ID = "fontes_seguidas";
-
-interface PreferencesDoc {
-  _id?: string;
-  fontes_seguidas?: string[];
-}
+import { getMockEditais, setMockInterest, shortRef } from "@/lib/mock-data";
 
 // Repositorio de editais: unica porta de acesso a dados para a UI/API.
 // Quando o MongoDB nao esta configurado (ou falha), cai para dados mock,
@@ -33,6 +18,7 @@ interface EditalDoc {
   url_pdf?: string;
   status?: string;
   data_limit_submissao?: Date | string | null;
+  interessados?: string[];
   resultado?: {
     titulo?: string;
     titulo_edital?: string;
@@ -63,10 +49,13 @@ function toIso(value: Date | string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function mapDoc(doc: EditalDoc, source: SourceKey): Edital | null {
+// So calcula se O E-MAIL ATUAL esta na lista - nunca devolve a lista inteira
+// pro cliente, pra nao vazar o e-mail de uma pessoa pra outra.
+function mapDoc(doc: EditalDoc, source: SourceKey, email: string | null): Edital | null {
   const urlPdf = (doc.url_pdf || "").trim();
   if (!urlPdf) return null;
   const meta = SOURCES[source];
+  const interessados = (doc.interessados || []).map((e) => e.toLowerCase());
   return {
     id: encodeId(urlPdf),
     urlPdf,
@@ -78,6 +67,7 @@ function mapDoc(doc: EditalDoc, source: SourceKey): Edital | null {
     titulo: pickTitulo(doc),
     deadline: toIso(doc.data_limit_submissao),
     areas: pickAreas(doc),
+    interested: email ? interessados.includes(normalizeEmail(email)) : false,
   };
 }
 
@@ -89,9 +79,9 @@ function excludeExpired(editais: Edital[]): Edital[] {
   });
 }
 
-export async function listEditais(): Promise<Edital[]> {
+export async function listEditais(email: string | null): Promise<Edital[]> {
   if (!isMongoConfigured()) {
-    return excludeExpired(getMockEditais());
+    return excludeExpired(getMockEditais(email));
   }
 
   try {
@@ -102,11 +92,11 @@ export async function listEditais(): Promise<Edital[]> {
       const docs = await db
         .collection<EditalDoc>(meta.collection)
         .find({ status: "ok" })
-        .project({ url_pdf: 1, data_limit_submissao: 1, resultado: 1 })
+        .project({ url_pdf: 1, data_limit_submissao: 1, resultado: 1, interessados: 1 })
         .toArray();
 
       for (const doc of docs) {
-        const edital = mapDoc(doc as EditalDoc, meta.key);
+        const edital = mapDoc(doc as EditalDoc, meta.key, email);
         if (edital) all.push(edital);
       }
     }
@@ -121,53 +111,43 @@ export async function listEditais(): Promise<Edital[]> {
     return excludeExpired(all);
   } catch (err) {
     console.error("[editais-repository] Falha ao consultar Mongo, usando mock:", err);
-    return excludeExpired(getMockEditais());
+    return excludeExpired(getMockEditais(email));
   }
 }
 
-export async function getPreferences(): Promise<SourcePreferences> {
+export async function setEditalInterest(
+  id: string,
+  email: string,
+  interested: boolean,
+): Promise<boolean> {
   if (!isMongoConfigured()) {
-    return getMockPreferences();
+    return setMockInterest(id, email, interested);
   }
+
+  let urlPdf: string;
+  try {
+    urlPdf = decodeId(id);
+  } catch {
+    return false;
+  }
+
+  const normalized = normalizeEmail(email);
 
   try {
     const db = await getDb();
-    const doc = await db
-      .collection<PreferencesDoc>(PREFERENCES_COLLECTION)
-      .findOne({ _id: PREFERENCES_DOC_ID } as never);
-
-    const followed = new Set((doc?.fontes_seguidas || []).map((f) => f.toLowerCase()));
-    const prefs = { ...ALL_SOURCES_UNFOLLOWED };
-    for (const key of Object.keys(prefs) as SourceKey[]) {
-      prefs[key] = followed.has(key);
+    for (const meta of Object.values(SOURCES)) {
+      const result = await db.collection<EditalDoc>(meta.collection).updateOne(
+        { url_pdf: urlPdf },
+        {
+          [interested ? "$addToSet" : "$pull"]: { interessados: normalized },
+          $set: { updated_at: new Date() },
+        } as never,
+      );
+      if (result.matchedCount > 0) return true;
     }
-    return prefs;
+    return false;
   } catch (err) {
-    console.error("[editais-repository] Falha ao ler preferencias, usando mock:", err);
-    return getMockPreferences();
-  }
-}
-
-export async function setSourceFollowed(
-  source: SourceKey,
-  followed: boolean,
-): Promise<SourcePreferences> {
-  if (!isMongoConfigured()) {
-    return setMockSourceFollowed(source, followed);
-  }
-
-  try {
-    const db = await getDb();
-    await db.collection<PreferencesDoc>(PREFERENCES_COLLECTION).updateOne(
-      { _id: PREFERENCES_DOC_ID } as never,
-      {
-        [followed ? "$addToSet" : "$pull"]: { fontes_seguidas: source },
-      } as never,
-      { upsert: true },
-    );
-    return getPreferences();
-  } catch (err) {
-    console.error("[editais-repository] Falha ao gravar preferencias:", err);
-    return getMockPreferences();
+    console.error("[editais-repository] Falha ao gravar interesse:", err);
+    return false;
   }
 }

@@ -44,13 +44,9 @@ def resolve_collection_name(collection_name: Optional[str]) -> str:
     return resolved or "editais"
 
 
-def coll(collection_name: Optional[str] = None, ensure_edital_indexes: bool = True) -> Collection:
+def coll(collection_name: Optional[str] = None) -> Collection:
     """
-    Retorna a collection do MongoDB (com cache).
-
-    Quando ensure_edital_indexes=True (padrao), garante os indices usados pelas
-    collections de editais (url_pdf unico, data_limit_submissao). Passe False
-    para collections de outro formato, como preferencias do usuario.
+    Retorna a collection do MongoDB (com cache) e garante indice unico por url_pdf.
     """
     global client_cache, collection_cache
 
@@ -89,9 +85,8 @@ def coll(collection_name: Optional[str] = None, ensure_edital_indexes: bool = Tr
 
         # cache da collection por nome para reduzir overhead
         collection = client_cache[db_name][coll_name]
-        if ensure_edital_indexes:
-            collection.create_index([("url_pdf", ASCENDING)], unique=True)
-            collection.create_index([("data_limit_submissao", ASCENDING)])
+        collection.create_index([("url_pdf", ASCENDING)], unique=True)
+        collection.create_index([("data_limit_submissao", ASCENDING)])
         collection_cache[coll_name] = collection
 
     except PyMongoError as exc:
@@ -165,51 +160,67 @@ def save(
         return "disabled"
 
 
-PREFERENCES_COLLECTION = "preferencias_usuario"
-PREFERENCES_DOC_ID = "fontes_seguidas"
+def normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
 
 
-def get_followed_sources() -> set[str]:
+def add_interessado(url_pdf: str, collection_name: str, email: str) -> str:
     """
-    Le as fontes que o usuario segue (preferencia global, sem multi-usuario ainda).
+    Inscreve um e-mail na lista de interessados de um edital especifico.
 
-    Mesmo documento/collection que o front-end Next.js le e escreve.
+    Sem autenticacao: a pessoa so precisa informar o proprio e-mail. Cada edital
+    guarda sua propria lista (campo `interessados`), independente da fonte.
+    Retorna: updated | not_found | disabled
     """
+    normalized = normalize_email(email)
+    if not normalized:
+        return "not_found"
     try:
-        doc = coll(PREFERENCES_COLLECTION, ensure_edital_indexes=False).find_one(
-            {"_id": PREFERENCES_DOC_ID}
-        )
-    except (RuntimeError, PyMongoError) as exc:
-        print(f"[MongoDB] Falha ao ler preferencias de fontes: {exc}")
-        return set()
-
-    if not doc:
-        return set()
-
-    fontes = doc.get("fontes_seguidas") or []
-    return {str(f).strip().lower() for f in fontes if str(f).strip()}
-
-
-def set_source_followed(source_key: str, followed: bool) -> str:
-    """
-    Liga ou desliga uma fonte na lista de fontes seguidas pelo usuario.
-
-    Retorna: updated | disabled
-    """
-    op = "$addToSet" if followed else "$pull"
-    try:
-        coll(PREFERENCES_COLLECTION, ensure_edital_indexes=False).update_one(
-            {"_id": PREFERENCES_DOC_ID},
+        result = coll(collection_name).update_one(
+            {"url_pdf": url_pdf},
             {
-                op: {"fontes_seguidas": source_key},
+                "$addToSet": {"interessados": normalized},
                 "$set": {"updated_at": datetime.now(timezone.utc)},
             },
-            upsert=True,
         )
-        return "updated"
     except (RuntimeError, PyMongoError) as exc:
-        print(f"[MongoDB] Falha ao atualizar preferencias de fontes: {exc}")
+        print(f"[MongoDB] Falha ao inscrever interessado: {exc}")
         return "disabled"
+
+    return "updated" if result.matched_count > 0 else "not_found"
+
+
+def remove_interessado(url_pdf: str, collection_name: str, email: str) -> str:
+    """Remove um e-mail da lista de interessados de um edital especifico."""
+    normalized = normalize_email(email)
+    if not normalized:
+        return "not_found"
+    try:
+        result = coll(collection_name).update_one(
+            {"url_pdf": url_pdf},
+            {
+                "$pull": {"interessados": normalized},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+        )
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao remover interessado: {exc}")
+        return "disabled"
+
+    return "updated" if result.matched_count > 0 else "not_found"
+
+
+def list_interessados(url_pdf: str, collection_name: str) -> list[str]:
+    """Lista os e-mails inscritos num edital especifico (uso: CLI/depuracao)."""
+    try:
+        doc = coll(collection_name).find_one({"url_pdf": url_pdf}, {"_id": 0, "interessados": 1})
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao listar interessados: {exc}")
+        return []
+
+    if not doc:
+        return []
+    return list(doc.get("interessados") or [])
 
 
 def find_deadline_candidates(
@@ -233,6 +244,7 @@ def find_deadline_candidates(
                 "resultado": 1,
                 "data_limit_submissao": 1,
                 "deadline_reminder": 1,
+                "interessados": 1,
             },
         )
         return list(cursor)

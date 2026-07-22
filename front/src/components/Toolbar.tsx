@@ -5,15 +5,15 @@ export type ViewMode = "all" | "mine";
 interface ToolbarProps {
   view: ViewMode;
   totalCount: number;
-  followedCount: number;
+  interestCount: number;
   onViewChange: (view: ViewMode) => void;
 }
 
-// Barra de filtro: Todos os editais x apenas os das fontes seguidas.
+// Barra de filtro: Todos os editais x apenas os marcados como interesse.
 export default function Toolbar({
   view,
   totalCount,
-  followedCount,
+  interestCount,
   onViewChange,
 }: ToolbarProps) {
   return (
@@ -35,7 +35,7 @@ export default function Toolbar({
           type="button"
           onClick={() => onViewChange("mine")}
         >
-          Minhas fontes <span className="count">{followedCount}</span>
+          Meus interesses <span className="count">{interestCount}</span>
         </button>
       </div>
     </div>
