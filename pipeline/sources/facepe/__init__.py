@@ -1,4 +1,4 @@
-from .constants import BASE_URL, MONGO_COLLECTION, SOURCE_KEY, SOURCE_LABEL
+from .constants import BASE_URL, SOURCE_KEY, SOURCE_LABEL
 from .models import FacepeCall
 from .parser import (
     extract_primary_pdf_url,
@@ -14,7 +14,6 @@ __all__ = [
     "SOURCE_KEY",
     "SOURCE_LABEL",
     "BASE_URL",
-    "MONGO_COLLECTION",
     "FacepeCall",
     "normalize_text",
     "resolve_target_year",

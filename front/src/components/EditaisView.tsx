@@ -95,7 +95,7 @@ export default function EditaisView({ initialEditais, live }: EditaisViewProps) 
     flashToast(edital.titulo, nextValue);
 
     try {
-      const res = await fetch(`/api/editais/${edital.id}/interest`, {
+      const res = await fetch(`/api/editais/${edital.id}/interest`, { //
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, interested: nextValue }),

@@ -24,11 +24,10 @@ Todas as fontes gravam na mesma collection Mongo (`editais`), identificadas pelo
 | CAPES  | `capes`             | `"capes"`              |
 
 Até 2026-07-21 cada fonte gravava numa collection própria (`editais_facepe`,
-`editais_cnpq`, `editais_finep`, `editais_capes`). Os dados foram migrados para a
-collection única com `pipeline/scripts/migrate_to_single_collection.py` (idempotente,
-seguro rodar de novo — pula documentos já migrados). As collections antigas foram
-mantidas como backup e podem ser removidas manualmente no Atlas após confirmar que
-tudo funciona na nova.
+`editais_cnpq`, `editais_finep`, `editais_capes`). Os dados já foram migrados (via
+script one-shot, removido do repo depois de usado) para a collection única `editais`.
+As collections antigas foram mantidas como backup no Atlas e podem ser removidas
+manualmente após confirmar que tudo continua funcionando na nova.
 
 ## Arquitetura da Pipeline
 
