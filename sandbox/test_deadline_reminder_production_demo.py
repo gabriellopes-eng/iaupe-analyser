@@ -63,7 +63,6 @@ def main() -> int:
         return 1
 
     source_id, source = get_source_config(args.source)
-    collection_name = source["mongo_collection"]
 
     now = datetime.now(timezone.utc)
     deadline = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=args.step)
@@ -81,14 +80,13 @@ def main() -> int:
             "DeadlineReminderEmailNotifier em apresentacao academica."
         ),
         "publico_alvo": "Pesquisadores, ICTs e empresas elegiveis no edital.",
-        "fonte": source_id,
     }
 
     status = save(
         url_pdf=test_url,
         resultado=saved_json,
+        fonte=source_id,
         texto_preview="Deadline production demo",
-        collection_name=collection_name,
         data_limit_submissao=deadline,
     )
 
@@ -96,7 +94,7 @@ def main() -> int:
         print("Falha ao persistir registro de teste no MongoDB.")
         return 1
 
-    coll(collection_name).update_one(
+    coll().update_one(
         {"url_pdf": test_url},
         {
             "$unset": {"deadline_reminder": ""},
@@ -106,21 +104,24 @@ def main() -> int:
 
     print("Registro demo preparado com sucesso.")
     print(f"- Fonte: {source['label']} ({source_id})")
-    print(f"- Collection: {collection_name}")
     print(f"- URL: {test_url}")
     print(f"- Titulo: {demo_title}")
     print(f"- Prazo (D-{args.step}): {deadline.date().isoformat()}")
 
-    recipient = args.recipient.strip() or None
-    notifier = DeadlineReminderEmailNotifier(test_recipient=recipient)
-    if not notifier.is_enabled():
-        print("Erro: destinatario nao configurado. Use --recipient ou RECIPIENT_EMAIL.")
+    recipient = args.recipient.strip() or (os.getenv("RECIPIENT_EMAIL") or "").strip()
+    if not recipient:
+        print("Erro: informe --recipient ou configure RECIPIENT_EMAIL no .env.")
         return 1
 
-    resolved_recipient = recipient or (os.getenv("RECIPIENT_EMAIL") or "").strip()
-    print(f"Destinatario do envio: {resolved_recipient}")
+    notifier = DeadlineReminderEmailNotifier()
+    if not notifier.is_smtp_configured():
+        print("Erro: SMTP_USER/SMTP_PASS nao configurados no .env.")
+        return 1
+
+    print(f"Destinatario do envio: {recipient}")
 
     notifier.notify_deadline(
+        recipient_email=recipient,
         source_label=source["label"],
         source_id=source_id,
         pdf_url=test_url,
@@ -131,7 +132,6 @@ def main() -> int:
     print("Email de lembrete enviado com sucesso.")
 
     marked = mark_deadline_step_sent(
-        collection_name=collection_name,
         url_pdf=test_url,
         step_days=args.step,
     )
@@ -140,7 +140,7 @@ def main() -> int:
         print("Falha ao marcar envio no MongoDB (ou marco ja existente).")
         return 1
 
-    updated = coll(collection_name).find_one(
+    updated = coll().find_one(
         {"url_pdf": test_url},
         {"_id": 0, "deadline_reminder": 1, "data_limit_submissao": 1},
     )
