@@ -54,7 +54,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
 
         pending_links: list[str] = []
         for link in links:
-            if already_exists(link, collection_name=source["mongo_collection"]):
+            if already_exists(link):
                 already_saved_total += 1
                 continue
 
@@ -66,10 +66,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         selected_total = len(links)
 
         if not links:
-            print(
-                f"Fonte: {source['label']} ({source_id}) | "
-                f"Collection Mongo: {source['mongo_collection']}"
-            )
+            print(f"Fonte: {source['label']} ({source_id})")
             print(
                 f"Encontrados: {found_total} | "
                 f"Pendentes selecionados pelo limite: {selected_total} | "
@@ -78,10 +75,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
             print("Nenhum novo PDF pendente para processar.")
             return
 
-        print(
-            f"Fonte: {source['label']} ({source_id}) | "
-            f"Collection Mongo: {source['mongo_collection']}"
-        )
+        print(f"Fonte: {source['label']} ({source_id})")
         print(
             f"Encontrados: {found_total} | "
             f"Pendentes selecionados pelo limite: {selected_total} | "
@@ -93,7 +87,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         for i, link in enumerate(links, start=1):
             try:
                 # evita retrabalho para documentos ja processados com sucesso
-                if already_exists(link, collection_name=source["mongo_collection"]):
+                if already_exists(link):
                     print(f"[{i}/{len(links)}] ✅ Já salvo no MongoDB (status=ok): {link}")
                     already_saved_total += 1
                     if i < len(links):
@@ -110,8 +104,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                     status = save(
                         link,
                         {"erro": "Texto vazio"},
+                        fonte=source_id,
                         texto_preview="",
-                        collection_name=source["mongo_collection"],
                         data_limit_submissao=None,
                     )
                     if status != "disabled":
@@ -136,8 +130,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                 status = save(
                     link,
                     resultado,
+                    fonte=source_id,
                     texto_preview=texto,
-                    collection_name=source["mongo_collection"],
                     data_limit_submissao=data_limit_submissao,
                 )
 
@@ -168,7 +162,6 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                             notifier.notify_saved_record(
                                 source_label=source["label"],
                                 source_id=source_id,
-                                collection_name=source["mongo_collection"],
                                 save_status=status,
                                 pdf_url=link,
                                 saved_json=resultado,

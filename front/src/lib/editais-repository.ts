@@ -1,10 +1,10 @@
 import {
   Edital,
   SOURCES,
-  SourceKey,
   daysUntil,
   decodeId,
   encodeId,
+  isSourceKey,
   normalizeEmail,
 } from "@/domain/edital";
 import { getDb, isMongoConfigured } from "@/lib/mongo";
@@ -14,9 +14,14 @@ import { getMockEditais, setMockInterest, shortRef } from "@/lib/mock-data";
 // Quando o MongoDB nao esta configurado (ou falha), cai para dados mock,
 // mantendo o front funcional para demonstracao.
 
+// Todos os editais (de qualquer fonte) vivem numa unica collection Mongo -
+// mesma collection que a pipeline Python le/escreve (ver pipeline/db/mongo.py).
+const EDITAIS_COLLECTION = "editais";
+
 interface EditalDoc {
   url_pdf?: string;
   status?: string;
+  fonte?: string;
   data_limit_submissao?: Date | string | null;
   interessados?: string[];
   resultado?: {
@@ -51,19 +56,21 @@ function toIso(value: Date | string | null | undefined): string | null {
 
 // So calcula se O E-MAIL ATUAL esta na lista - nunca devolve a lista inteira
 // pro cliente, pra nao vazar o e-mail de uma pessoa pra outra.
-function mapDoc(doc: EditalDoc, source: SourceKey, email: string | null): Edital | null {
+function mapDoc(doc: EditalDoc, email: string | null): Edital | null {
   const urlPdf = (doc.url_pdf || "").trim();
-  if (!urlPdf) return null;
-  const meta = SOURCES[source];
+  const fonte = doc.fonte || "";
+  if (!urlPdf || !isSourceKey(fonte)) return null;
+
+  const meta = SOURCES[fonte];
   const interessados = (doc.interessados || []).map((e) => e.toLowerCase());
   return {
     id: encodeId(urlPdf),
     urlPdf,
-    source,
+    source: fonte,
     sourceLabel: meta.label,
     orgao: meta.orgao,
     color: meta.color,
-    ref: shortRef(source, urlPdf),
+    ref: shortRef(fonte, urlPdf),
     titulo: pickTitulo(doc),
     deadline: toIso(doc.data_limit_submissao),
     areas: pickAreas(doc),
@@ -79,6 +86,7 @@ function excludeExpired(editais: Edital[]): Edital[] {
   });
 }
 
+// Lista todos os editais, ordenados por prazo mais proximo primeiro (sem prazo vai pro fim).
 export async function listEditais(email: string | null): Promise<Edital[]> {
   if (!isMongoConfigured()) {
     return excludeExpired(getMockEditais(email));
@@ -86,20 +94,15 @@ export async function listEditais(email: string | null): Promise<Edital[]> {
 
   try {
     const db = await getDb();
-    const all: Edital[] = [];
+    const docs = await db
+      .collection<EditalDoc>(EDITAIS_COLLECTION)
+      .find({ status: "ok" })
+      .project({ url_pdf: 1, fonte: 1, data_limit_submissao: 1, resultado: 1, interessados: 1 })
+      .toArray();
 
-    for (const meta of Object.values(SOURCES)) {
-      const docs = await db
-        .collection<EditalDoc>(meta.collection)
-        .find({ status: "ok" })
-        .project({ url_pdf: 1, data_limit_submissao: 1, resultado: 1, interessados: 1 })
-        .toArray();
-
-      for (const doc of docs) {
-        const edital = mapDoc(doc as EditalDoc, meta.key, email);
-        if (edital) all.push(edital);
-      }
-    }
+    const all = docs
+      .map((doc) => mapDoc(doc as EditalDoc, email))
+      .filter((e): e is Edital => e !== null);
 
     // ordena por prazo mais proximo primeiro; sem prazo vai para o fim
     all.sort((a, b) => {
@@ -115,6 +118,7 @@ export async function listEditais(email: string | null): Promise<Edital[]> {
   }
 }
 
+// Marca ou desmarca interesse de UM edital especifico para o e-mail informado.
 export async function setEditalInterest(
   id: string,
   email: string,
@@ -135,17 +139,14 @@ export async function setEditalInterest(
 
   try {
     const db = await getDb();
-    for (const meta of Object.values(SOURCES)) {
-      const result = await db.collection<EditalDoc>(meta.collection).updateOne(
-        { url_pdf: urlPdf },
-        {
-          [interested ? "$addToSet" : "$pull"]: { interessados: normalized },
-          $set: { updated_at: new Date() },
-        } as never,
-      );
-      if (result.matchedCount > 0) return true;
-    }
-    return false;
+    const result = await db.collection<EditalDoc>(EDITAIS_COLLECTION).updateOne(
+      { url_pdf: urlPdf },
+      {
+        [interested ? "$addToSet" : "$pull"]: { interessados: normalized },
+        $set: { updated_at: new Date() },
+      } as never,
+    );
+    return result.matchedCount > 0;
   } catch (err) {
     console.error("[editais-repository] Falha ao gravar interesse:", err);
     return false;

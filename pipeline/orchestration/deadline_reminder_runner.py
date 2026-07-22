@@ -43,7 +43,7 @@ def run_deadline_reminders(
     window_end = today_start + timedelta(days=max(steps))
 
     docs = find_deadline_candidates(
-        collection_name=source["mongo_collection"],
+        fonte=source_id,
         start_at=today_start,
         end_at=window_end,
     )
@@ -111,7 +111,6 @@ def run_deadline_reminders(
                 )
 
             marked = mark_deadline_step_sent(
-                collection_name=source["mongo_collection"],
                 url_pdf=pdf_url,
                 step_days=days_left,
             )

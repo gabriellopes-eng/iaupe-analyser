@@ -10,8 +10,17 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 
 load_dotenv(override=True)
 
+# Todos os editais (de qualquer fonte) vivem numa unica collection fixa. Cada
+# documento se identifica pelo campo `fonte` (facepe/cnpq/finep/capes) - a
+# regra de coleta continua separada por fonte no codigo, so o armazenamento
+# e compartilhado. Nao le de env var de proposito: a antiga MONGODB_COLLECTION
+# ficava com um valor legado (de antes do modelo por fonte existir) que nunca
+# era respeitado na pratica - deixar configuravel de novo reintroduziria essa
+# armadilha silenciosamente.
+EDITAIS_COLLECTION_NAME = "editais"
+
 client_cache: Optional[MongoClient] = None
-collection_cache: dict[str, Collection] = {}
+collection_cache: Optional[Collection] = None
 mongo_disabled = False
 mongo_disable_reason: Optional[str] = None
 
@@ -38,22 +47,15 @@ def mongo_is_requested() -> bool:
     return bool(uri)
 
 
-def resolve_collection_name(collection_name: Optional[str]) -> str:
-    """Resolve nome da collection com fallback para configuracao global."""
-    resolved = (collection_name or os.getenv("MONGODB_COLLECTION") or "editais").strip()
-    return resolved or "editais"
-
-
-def coll(collection_name: Optional[str] = None) -> Collection:
+def coll() -> Collection:
     """
-    Retorna a collection do MongoDB (com cache) e garante indice unico por url_pdf.
+    Retorna a collection unica `editais` do MongoDB (com cache) e garante os
+    indices usados pelas consultas (url_pdf unico, data_limit_submissao, fonte).
     """
     global client_cache, collection_cache
 
-    coll_name = resolve_collection_name(collection_name)
-
-    if coll_name in collection_cache:
-        return collection_cache[coll_name]
+    if collection_cache is not None:
+        return collection_cache
 
     if mongo_disabled or not mongo_is_requested():
         raise RuntimeError(mongo_disable_reason or "MongoDB desabilitado ou nao configurado")
@@ -83,27 +85,27 @@ def coll(collection_name: Optional[str] = None) -> Collection:
                 retryWrites=True,
             )
 
-        # cache da collection por nome para reduzir overhead
-        collection = client_cache[db_name][coll_name]
+        collection = client_cache[db_name][EDITAIS_COLLECTION_NAME]
         collection.create_index([("url_pdf", ASCENDING)], unique=True)
         collection.create_index([("data_limit_submissao", ASCENDING)])
-        collection_cache[coll_name] = collection
+        collection.create_index([("fonte", ASCENDING)])
+        collection_cache = collection
 
     except PyMongoError as exc:
         client_cache = None
-        collection_cache = {}
+        collection_cache = None
         disable_mongo(str(exc))
         raise RuntimeError(mongo_disable_reason or "Falha ao conectar no MongoDB") from exc
 
-    return collection_cache[coll_name]
+    return collection_cache
 
-# Essa funcao serve para verificar se um edital ja foi processado com status "ok" 
-# antes de tentar analisar e salvar novamente, o que economiza recursos de IA 
+# Essa funcao serve para verificar se um edital ja foi processado com status "ok"
+# antes de tentar analisar e salvar novamente, o que economiza recursos de IA
 # e evita atualizacoes desnecessarias no MongoDB. Ela é chamada no pipeline_runner antes de processar cada link, e se retornar True, o pipeline simplesmente pula para o proximo link sem gastar recursos com analise ou persistencia.
-def already_exists(url_pdf: str, collection_name: Optional[str] = None) -> bool:
+def already_exists(url_pdf: str) -> bool:
     """Verifica se um edital ja foi salvo com status ok."""
     try:
-        doc = coll(collection_name).find_one({"url_pdf": url_pdf}, {"_id": 1, "status": 1})
+        doc = coll().find_one({"url_pdf": url_pdf}, {"_id": 1, "status": 1})
     except (RuntimeError, PyMongoError) as exc:
         print(f"[MongoDB] Falha ao consultar already_exists: {exc}")
         return False
@@ -114,8 +116,8 @@ def already_exists(url_pdf: str, collection_name: Optional[str] = None) -> bool:
 def save(
     url_pdf: str,
     resultado: dict,
+    fonte: str,
     texto_preview: Optional[str] = None,
-    collection_name: Optional[str] = None,
     data_limit_submissao: Optional[datetime] = None,
 ) -> str:
     """
@@ -127,6 +129,7 @@ def save(
 
     doc_set = {
         "url_pdf": url_pdf,
+        "fonte": fonte,
         "resultado": resultado,
         "status": "ok" if "erro" not in (resultado or {}) else "erro",
         "data_limit_submissao": data_limit_submissao,
@@ -138,14 +141,14 @@ def save(
 
     try:
         # insert preferencial para manter created_at apenas na primeira gravacao
-        collection = coll(collection_name)
+        collection = coll()
         collection.insert_one({**doc_set, "created_at": now})
         return "inserted"
 
     except DuplicateKeyError:
         # se ja existe url_pdf, atualiza campos mutaveis
         try:
-            collection = coll(collection_name)
+            collection = coll()
             collection.update_one({"url_pdf": url_pdf}, {"$set": doc_set})
             return "updated"
         except (RuntimeError, PyMongoError) as exc:
@@ -164,7 +167,7 @@ def normalize_email(email: str) -> str:
     return (email or "").strip().lower()
 
 
-def add_interessado(url_pdf: str, collection_name: str, email: str) -> str:
+def add_interessado(url_pdf: str, email: str) -> str:
     """
     Inscreve um e-mail na lista de interessados de um edital especifico.
 
@@ -176,7 +179,7 @@ def add_interessado(url_pdf: str, collection_name: str, email: str) -> str:
     if not normalized:
         return "not_found"
     try:
-        result = coll(collection_name).update_one(
+        result = coll().update_one(
             {"url_pdf": url_pdf},
             {
                 "$addToSet": {"interessados": normalized},
@@ -190,13 +193,13 @@ def add_interessado(url_pdf: str, collection_name: str, email: str) -> str:
     return "updated" if result.matched_count > 0 else "not_found"
 
 
-def remove_interessado(url_pdf: str, collection_name: str, email: str) -> str:
+def remove_interessado(url_pdf: str, email: str) -> str:
     """Remove um e-mail da lista de interessados de um edital especifico."""
     normalized = normalize_email(email)
     if not normalized:
         return "not_found"
     try:
-        result = coll(collection_name).update_one(
+        result = coll().update_one(
             {"url_pdf": url_pdf},
             {
                 "$pull": {"interessados": normalized},
@@ -210,10 +213,10 @@ def remove_interessado(url_pdf: str, collection_name: str, email: str) -> str:
     return "updated" if result.matched_count > 0 else "not_found"
 
 
-def list_interessados(url_pdf: str, collection_name: str) -> list[str]:
+def list_interessados(url_pdf: str) -> list[str]:
     """Lista os e-mails inscritos num edital especifico (uso: CLI/depuracao)."""
     try:
-        doc = coll(collection_name).find_one({"url_pdf": url_pdf}, {"_id": 0, "interessados": 1})
+        doc = coll().find_one({"url_pdf": url_pdf}, {"_id": 0, "interessados": 1})
     except (RuntimeError, PyMongoError) as exc:
         print(f"[MongoDB] Falha ao listar interessados: {exc}")
         return []
@@ -225,22 +228,29 @@ def list_interessados(url_pdf: str, collection_name: str) -> list[str]:
 
 def find_deadline_candidates(
     *,
-    collection_name: Optional[str],
+    fonte: Optional[str],
     start_at: datetime,
     end_at: datetime,
 ) -> list[dict]:
-    """Busca editais com status ok e data_limit_submissao na janela informada."""
-    query = {
+    """
+    Busca editais com status ok e data_limit_submissao na janela informada.
+
+    Sem `fonte`, busca em todas as fontes de uma vez (a collection e unica).
+    """
+    query: dict = {
         "status": "ok",
         "data_limit_submissao": {"$gte": start_at, "$lte": end_at},
     }
+    if fonte:
+        query["fonte"] = fonte
 
     try:
-        cursor = coll(collection_name).find(
+        cursor = coll().find(
             query,
             {
                 "_id": 0,
                 "url_pdf": 1,
+                "fonte": 1,
                 "resultado": 1,
                 "data_limit_submissao": 1,
                 "deadline_reminder": 1,
@@ -255,7 +265,6 @@ def find_deadline_candidates(
 
 def mark_deadline_step_sent(
     *,
-    collection_name: Optional[str],
     url_pdf: str,
     step_days: int,
     sent_at: Optional[datetime] = None,
@@ -265,7 +274,7 @@ def mark_deadline_step_sent(
     """
     when = sent_at or datetime.now(timezone.utc)
     try:
-        result = coll(collection_name).update_one(
+        result = coll().update_one(
             {
                 "url_pdf": url_pdf,
                 "deadline_reminder.sent_steps": {"$ne": step_days},

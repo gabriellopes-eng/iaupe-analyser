@@ -246,7 +246,6 @@ jobs:
           PYTHONUNBUFFERED: "1"
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           MONGODB_DB: ${{ secrets.MONGODB_DB }}
-          MONGODB_COLLECTION: ${{ secrets.MONGODB_COLLECTION }}
           MONGODB_ENABLED: ${{ secrets.MONGODB_ENABLED }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}

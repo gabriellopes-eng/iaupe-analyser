@@ -14,12 +14,21 @@ O pipeline de produção é organizado em módulos por responsabilidade, com orq
 
 ## Fontes Suportadas
 
-| Fonte  | Chave (`--source`) | Collection Mongo |
-|--------|---------------------|------------------|
-| FACEPE | `facepe`            | `editais_facepe` |
-| CNPq   | `cnpq`              | `editais_cnpq`   |
-| FINEP  | `finep`             | `editais_finep`  |
-| CAPES  | `capes`             | `editais_capes`  |
+Todas as fontes gravam na mesma collection Mongo (`editais`), identificadas pelo campo `fonte`.
+
+| Fonte  | Chave (`--source`) | Campo `fonte` no Mongo |
+|--------|---------------------|------------------------|
+| FACEPE | `facepe`            | `"facepe"`             |
+| CNPq   | `cnpq`              | `"cnpq"`                |
+| FINEP  | `finep`             | `"finep"`              |
+| CAPES  | `capes`             | `"capes"`              |
+
+Até 2026-07-21 cada fonte gravava numa collection própria (`editais_facepe`,
+`editais_cnpq`, `editais_finep`, `editais_capes`). Os dados foram migrados para a
+collection única com `pipeline/scripts/migrate_to_single_collection.py` (idempotente,
+seguro rodar de novo — pula documentos já migrados). As collections antigas foram
+mantidas como backup e podem ser removidas manualmente no Atlas após confirmar que
+tudo funciona na nova.
 
 ## Arquitetura da Pipeline
 
@@ -227,8 +236,8 @@ RECIPIENT_EMAIL=to@example.com
 
 Observações:
 
-- A collection no MongoDB é definida pela fonte selecionada.
-- `MONGODB_COLLECTION` funciona como fallback interno quando nenhuma collection é informada na chamada.
+- Todos os editais (de qualquer fonte) ficam numa única collection `editais`; cada
+  documento tem um campo `fonte` (`facepe`/`cnpq`/`finep`/`capes`) para identificar a origem.
 - Para desativar a persistência mesmo com URI definida, use `MONGODB_ENABLED=0`.
 - O remetente do e-mail é definido por `SENDER_EMAIL`.
 - `RECIPIENT_EMAIL` aceita um ou vários e-mails separados por vírgula.

@@ -88,7 +88,7 @@ const mockState: MockRecord[] = SEEDS.map((seed) => {
       deadline: inDays(seed.deadlineDays),
       areas: seed.areas,
     },
-    interessados: new Set((seed.interessados || []).map(normalizeEmail)),
+    interessados: new Set((seed.interessados || []).map(normalizeEmail)), // adicionar nos editais e ja posso tirar o mock
   };
 });
 

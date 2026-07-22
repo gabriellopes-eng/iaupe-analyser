@@ -6,8 +6,8 @@ acompanhar. Os lembretes de prazo (D-30, D-15, D-7) chegam individualmente para 
 e-mail, só dos editais que aquela pessoa marcou — nunca dos que outra pessoa marcou.
 
 Este módulo é independente da pipeline Python. O **único ponto de integração** é o
-MongoDB compartilhado: o front lê as collections `editais_facepe`, `editais_cnpq`,
-`editais_finep` e `editais_capes` para exibir os editais, e grava o e-mail da pessoa
+MongoDB compartilhado: o front lê a collection única `editais` (todas as fontes juntas,
+identificadas pelo campo `fonte`) para exibir os editais, e grava o e-mail da pessoa
 no campo `interessados` do edital específico marcado — o mesmo campo que a pipeline
 lê para saber quem notificar quando o prazo se aproxima.
 
@@ -97,9 +97,9 @@ Toda leitura passa por `lib/editais-repository.ts`, a **única porta de dados**:
 
 - **Sem `MONGODB_URI`** → devolve o mock de `lib/mock-data.ts` (modo `DEMO`), calculando
   `interested` a partir do e-mail informado.
-- **Com `MONGODB_URI`** → conecta no Mongo, varre as collections
-  `editais_facepe/cnpq/finep/capes`, filtra `status=ok`, mapeia cada documento para o
-  tipo `Edital` e calcula `interested` conferindo se o e-mail está no array
+- **Com `MONGODB_URI`** → conecta no Mongo, consulta a collection única `editais`,
+  filtra `status=ok`, mapeia cada documento (usando o campo `fonte` para saber label/cor/
+  órgão) para o tipo `Edital` e calcula `interested` conferindo se o e-mail está no array
   `interessados` daquele documento — **sem nunca devolver a lista inteira para o
   navegador** (privacidade: uma pessoa não pode ver quem mais acompanha o mesmo edital).
 - **Se a conexão falhar** → registra o erro no console e cai no mock. A tela nunca quebra.

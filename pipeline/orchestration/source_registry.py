@@ -2,30 +2,29 @@ import os
 
 from sources import capes, cnpq, facepe, finep
 
-# catalogo central de fontes suportadas pela pipeline
+# catalogo central de fontes suportadas pela pipeline.
+# A regra de coleta de cada fonte (label, URL, como pegar os links) continua
+# separada por fonte; o armazenamento e unico (collection `editais`, ver
+# db/mongo.py) - cada documento se identifica pelo campo `fonte`.
 SOURCE_REGISTRY = {
     facepe.SOURCE_KEY: {
         "label": facepe.SOURCE_LABEL,
         "base_url": facepe.BASE_URL,
-        "mongo_collection": facepe.MONGO_COLLECTION,
         "collect_links": facepe.collect_links,
     },
     cnpq.SOURCE_KEY: {
         "label": cnpq.SOURCE_LABEL,
         "base_url": cnpq.BASE_URL,
-        "mongo_collection": cnpq.MONGO_COLLECTION,
         "collect_links": cnpq.collect_links,
     },
     finep.SOURCE_KEY: {
         "label": finep.SOURCE_LABEL,
         "base_url": finep.BASE_URL,
-        "mongo_collection": finep.MONGO_COLLECTION,
         "collect_links": finep.collect_links,
     },
     capes.SOURCE_KEY: {
         "label": capes.SOURCE_LABEL,
         "base_url": capes.BASE_URL,
-        "mongo_collection": capes.MONGO_COLLECTION,
         "collect_links": capes.collect_links,
     },
 }
