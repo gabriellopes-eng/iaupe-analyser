@@ -1,5 +1,5 @@
 from .client import auth_headers, fetch_open_chamadas, get_oauth_token, get_site_origin
-from .constants import BASE_URL, MONGO_COLLECTION, SOURCE_KEY, SOURCE_LABEL
+from .constants import BASE_URL, SOURCE_KEY, SOURCE_LABEL
 from .scraper import (
     LAST_COLLECTED_DOCUMENTS,
     FinepDocument,
@@ -14,7 +14,6 @@ __all__ = [
     "SOURCE_KEY",
     "SOURCE_LABEL",
     "BASE_URL",
-    "MONGO_COLLECTION",
     "FinepDocument",
     "LAST_COLLECTED_DOCUMENTS",
     "get_site_origin",

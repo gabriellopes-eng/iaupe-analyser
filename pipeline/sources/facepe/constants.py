@@ -1,7 +1,6 @@
 SOURCE_KEY = "facepe"
 SOURCE_LABEL = "FACEPE"
 BASE_URL = "https://www.facepe.br/editais/todos/?c=aberto"
-MONGO_COLLECTION = "editais_facepe"
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
 

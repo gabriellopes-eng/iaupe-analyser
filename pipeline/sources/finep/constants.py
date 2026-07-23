@@ -1,7 +1,6 @@
 SOURCE_KEY = "finep"
 SOURCE_LABEL = "FINEP"
 BASE_URL = "https://www.finep.gov.br/oportunidades"
-MONGO_COLLECTION = "editais_finep"
 
 #Na FINEP, a recência vem da própria API. O endpoint já pede ordenação decrescente por data de publicação, então não é necessário ordenar manualmente depois. 
 # O critério de recência é a data de publicação da chamada pública, que é fornecida diretamente pela API. 

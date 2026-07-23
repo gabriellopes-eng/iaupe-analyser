@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,7 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "pipeline"))
 
-from pipeline.db.mongo import coll, mark_deadline_step_sent, save
+from pipeline.db.connection import coll
+from pipeline.db.deadline_reminders import mark_deadline_step_sent
+from pipeline.db.editais import save
 from pipeline.emails.deadline_reminder_email_notifier import DeadlineReminderEmailNotifier
 from pipeline.orchestration.source_registry import get_source_config
 
@@ -43,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--recipient",
         default="",
-        help="Destinatario opcional para teste (sobrescreve RECIPIENT_EMAIL).",
+        help="Destinatario do teste. Sem isso, usa RECIPIENT_EMAIL do .env.",
     )
     parser.add_argument(
         "--url",
@@ -63,7 +66,6 @@ def main() -> int:
         return 1
 
     source_id, source = get_source_config(args.source)
-    collection_name = source["mongo_collection"]
 
     now = datetime.now(timezone.utc)
     deadline = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=args.step)
@@ -76,14 +78,13 @@ def main() -> int:
         "titulo": f"Edital sandbox {source['label']} D-{args.step}",
         "descricao": "Registro de teste de integracao do lembrete de prazo.",
         "publico_alvo": "Equipe interna",
-        "fonte": source_id,
     }
 
     status = save(
         url_pdf=test_url,
         resultado=saved_json,
+        fonte=source_id,
         texto_preview="Sandbox integration test",
-        collection_name=collection_name,
         data_limit_submissao=deadline,
     )
 
@@ -92,7 +93,7 @@ def main() -> int:
         return 1
 
     # limpa marcacao de lembrete para garantir comportamento deterministico no teste
-    coll(collection_name).update_one(
+    coll().update_one(
         {"url_pdf": test_url},
         {
             "$unset": {"deadline_reminder": ""},
@@ -101,16 +102,21 @@ def main() -> int:
     )
 
     print(f"Registro de teste preparado: {test_url}")
-    print(f"Collection: {collection_name} | Fonte: {source['label']} ({source_id}) | Marco: D-{args.step}")
+    print(f"Fonte: {source['label']} ({source_id}) | Marco: D-{args.step}")
 
-    notifier = DeadlineReminderEmailNotifier(test_recipient=args.recipient.strip() or None)
+    recipient = args.recipient.strip() or (os.getenv("RECIPIENT_EMAIL") or "").strip()
+    notifier = DeadlineReminderEmailNotifier()
 
     if args.send_email:
-        if not notifier.is_enabled():
-            print("Erro: destinatario nao configurado. Use --recipient ou RECIPIENT_EMAIL.")
+        if not recipient:
+            print("Erro: informe --recipient ou configure RECIPIENT_EMAIL no .env.")
+            return 1
+        if not notifier.is_smtp_configured():
+            print("Erro: SMTP_USER/SMTP_PASS nao configurados no .env.")
             return 1
 
         notifier.notify_deadline(
+            recipient_email=recipient,
             source_label=source["label"],
             source_id=source_id,
             pdf_url=test_url,
@@ -118,7 +124,7 @@ def main() -> int:
             deadline=deadline,
             days_left=args.step,
         )
-        print("Email de lembrete enviado com sucesso.")
+        print(f"Email de lembrete enviado com sucesso para {recipient}.")
     else:
         preview_html = notifier.build_html(
             source_label=source["label"],
@@ -132,7 +138,6 @@ def main() -> int:
         print(f"Preview HTML gerado ({len(preview_html)} chars).")
 
     marked = mark_deadline_step_sent(
-        collection_name=collection_name,
         url_pdf=test_url,
         step_days=args.step,
     )
@@ -141,7 +146,7 @@ def main() -> int:
         print("Falha ao marcar envio no MongoDB (ou marco ja existente).")
         return 1
 
-    updated = coll(collection_name).find_one(
+    updated = coll().find_one(
         {"url_pdf": test_url},
         {"_id": 0, "deadline_reminder": 1, "data_limit_submissao": 1},
     )

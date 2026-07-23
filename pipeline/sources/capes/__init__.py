@@ -1,5 +1,5 @@
 from .client import build_fallback_urls, fetch_html, get_with_retry
-from .constants import BASE_URL, MONGO_COLLECTION, SOURCE_KEY, SOURCE_LABEL
+from .constants import BASE_URL, SOURCE_KEY, SOURCE_LABEL
 from .models import CapesDocument
 from .parser import (
     collect_open_call_pages,
@@ -22,7 +22,6 @@ __all__ = [
     "SOURCE_KEY",
     "SOURCE_LABEL",
     "BASE_URL",
-    "MONGO_COLLECTION",
     "CapesDocument",
     "normalize_text",
     "clean_href",

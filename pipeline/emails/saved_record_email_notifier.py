@@ -41,8 +41,6 @@ class SavedRecordEmailNotifier:
         *,
         source_label: str,
         source_id: str,
-        collection_name: str,
-        save_status: str,
         pdf_url: str,
         saved_json: dict,
     ) -> None:
@@ -66,8 +64,6 @@ class SavedRecordEmailNotifier:
         html_body = self.build_saved_record_html(
             source_label=source_label,
             source_id=source_id,
-            collection_name=collection_name,
-            save_status=save_status,
             pdf_url=pdf_url,
             saved_json=saved_json,
         )
@@ -86,8 +82,6 @@ class SavedRecordEmailNotifier:
         *,
         source_label: str,
         source_id: str,
-        collection_name: str,
-        save_status: str,
         pdf_url: str,
         saved_json: dict,
     ) -> str:

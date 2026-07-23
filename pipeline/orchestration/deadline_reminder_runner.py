@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from db.mongo import find_deadline_candidates, mark_deadline_step_sent
+from db.deadline_reminders import find_deadline_candidates, mark_deadline_step_sent
 from emails.deadline_reminder_email_notifier import DeadlineReminderEmailNotifier
 
 from .source_registry import get_source_config
@@ -43,7 +43,7 @@ def run_deadline_reminders(
     window_end = today_start + timedelta(days=max(steps))
 
     docs = find_deadline_candidates(
-        collection_name=source["mongo_collection"],
+        fonte=source_id,
         start_at=today_start,
         end_at=window_end,
     )
@@ -111,7 +111,6 @@ def run_deadline_reminders(
                 )
 
             marked = mark_deadline_step_sent(
-                collection_name=source["mongo_collection"],
                 url_pdf=pdf_url,
                 step_days=days_left,
             )

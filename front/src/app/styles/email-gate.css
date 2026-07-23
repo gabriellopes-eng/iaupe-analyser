@@ -1,0 +1,35 @@
+/* ---- Identificacao por e-mail (sem autenticacao) ---- */
+.email-gate {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding: 14px 16px; margin: 22px 0;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.email-gate-set { color: var(--ink); }
+.email-gate-set b { color: var(--blue-bright); font-weight: 700; }
+.email-gate-change {
+  border: none; background: var(--surface-2); color: var(--ink-soft);
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  padding: 6px 12px; border-radius: 20px; cursor: pointer; transition: background 0.15s;
+}
+.email-gate-change:hover { background: var(--line-soft); }
+.email-gate-input-row { display: inline-flex; gap: 8px; }
+.email-gate input[type="email"] {
+  font-family: var(--sans); font-size: 13.5px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);
+  color: var(--ink); min-width: 220px;
+}
+.email-gate input[type="email"]:focus { outline: 2px solid var(--blue-bright); outline-offset: 1px; }
+.email-gate button[type="submit"] {
+  border: none; background: var(--blue-bright); color: #fff;
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+}
+.email-gate button[type="submit"]:hover { opacity: 0.9; }
+.email-gate-error { color: var(--red); font-size: 12.5px; width: 100%; }
+
+@media (max-width: 720px) {
+  .email-gate-input-row { width: 100%; }
+  .email-gate input[type="email"] { flex: 1; min-width: 0; }
+}

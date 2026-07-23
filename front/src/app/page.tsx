@@ -1,6 +1,5 @@
 import EditaisView from "@/components/EditaisView";
 import { listEditais } from "@/lib/editais-repository";
-import { isMongoConfigured } from "@/lib/mongo";
 
 // Server Component: carrega a vitrine de editais no servidor. O e-mail do
 // usuario so existe no navegador (localStorage, sem login) - por isso o
@@ -9,6 +8,6 @@ import { isMongoConfigured } from "@/lib/mongo";
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const editais = await listEditais(null);
-  return <EditaisView initialEditais={editais} live={isMongoConfigured()} />;
+  const { editais, live } = await listEditais(null);
+  return <EditaisView initialEditais={editais} live={live} />;
 }
