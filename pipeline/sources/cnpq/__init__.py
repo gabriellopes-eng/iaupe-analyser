@@ -1,4 +1,4 @@
-from .constants import BASE_URL, MONGO_COLLECTION, SOURCE_KEY, SOURCE_LABEL
+from .constants import BASE_URL, SOURCE_KEY, SOURCE_LABEL
 from .models import CnpqCall
 from .parser import (
     extract_anchor_candidates,
@@ -22,7 +22,6 @@ __all__ = [
     "SOURCE_KEY",
     "SOURCE_LABEL",
     "BASE_URL",
-    "MONGO_COLLECTION",
     "CnpqCall",
     "normalize_url",
     "is_cnpq_domain",

@@ -1,10 +1,10 @@
 import argparse
 import os
-from db.mongo import add_interessado, list_interessados, remove_interessado
+from db.interessados import add_interessado, list_interessados, remove_interessado
 from orchestration.deadline_reminder_runner import run_deadline_reminders
 from orchestration.pipeline_runner import run_pipeline
 from orchestration.settings import parse_limit
-from orchestration.source_registry import DEFAULT_SOURCE, SOURCE_REGISTRY, get_source_config
+from orchestration.source_registry import DEFAULT_SOURCE, SOURCE_REGISTRY
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -51,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--add-interessado",
         action="store_true",
-        help="Inscreve --email no edital --url (fonte definida por --source)",
+        help="Inscreve --email no edital --url",
     )
     parser.add_argument(
         "--remove-interessado",
@@ -73,30 +73,29 @@ if __name__ == "__main__":
 
     try:
         if args.add_interessado or args.remove_interessado or args.list_interessados:
-            # fluxo de interessados: inscrever/remover/listar e-mails por edital especifico
+            # fluxo de interessados: inscrever/remover/listar e-mails por edital
+            # especifico. A collection e unica, entao basta a url_pdf (nao
+            # precisa mais saber de qual fonte o edital veio).
             if not args.url:
                 print("Informe --url com a URL do PDF do edital.")
                 raise SystemExit(1)
-
-            source_id, source = get_source_config(args.source)
-            collection = source["mongo_collection"]
 
             if args.add_interessado:
                 if not args.email:
                     print("Informe --email para inscrever.")
                     raise SystemExit(1)
-                status = add_interessado(args.url, collection, args.email)
-                print(f"Inscrever interessado ({source_id}): {status} -> {args.email}")
+                status = add_interessado(args.url, args.email)
+                print(f"Inscrever interessado: {status} -> {args.email}")
 
             if args.remove_interessado:
                 if not args.email:
                     print("Informe --email para remover.")
                     raise SystemExit(1)
-                status = remove_interessado(args.url, collection, args.email)
-                print(f"Remover interessado ({source_id}): {status} -> {args.email}")
+                status = remove_interessado(args.url, args.email)
+                print(f"Remover interessado: {status} -> {args.email}")
 
             if args.list_interessados:
-                emails = list_interessados(args.url, collection)
+                emails = list_interessados(args.url)
                 print(f"Interessados em {args.url} ({len(emails)}):")
                 for email in emails:
                     print(f"- {email}")

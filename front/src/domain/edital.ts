@@ -8,40 +8,40 @@ export interface SourceMeta {
   label: string;
   orgao: string;
   color: string;
-  collection: string;
 }
 
-// Metadados das fontes, espelhando as collections da pipeline Python.
+// Metadados das fontes (apresentacao). O armazenamento e uma unica collection
+// Mongo (`editais`); cada documento se identifica pelo campo `fonte`.
 export const SOURCES: Record<SourceKey, SourceMeta> = {
   facepe: {
     key: "facepe",
     label: "FACEPE",
     orgao: "Fundação de Amparo à Ciência e Tecnologia de PE",
     color: "#c0392b",
-    collection: "editais_facepe",
   },
   cnpq: {
     key: "cnpq",
     label: "CNPq",
     orgao: "Conselho Nacional de Desenvolvimento Científico e Tecnológico",
     color: "#1c7a53",
-    collection: "editais_cnpq",
   },
   finep: {
     key: "finep",
     label: "FINEP",
     orgao: "Financiadora de Estudos e Projetos",
     color: "#2a5298",
-    collection: "editais_finep",
   },
   capes: {
     key: "capes",
     label: "CAPES",
     orgao: "Coord. de Aperfeiçoamento de Pessoal de Nível Superior",
     color: "#7a5cbf",
-    collection: "editais_capes",
   },
 };
+
+export function isSourceKey(value: string): value is SourceKey {
+  return Object.prototype.hasOwnProperty.call(SOURCES, value);
+}
 
 export interface Edital {
   id: string; // identificador estavel derivado da url_pdf (base64url)
