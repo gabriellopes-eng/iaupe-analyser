@@ -162,7 +162,6 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                             notifier.notify_saved_record(
                                 source_label=source["label"],
                                 source_id=source_id,
-                                save_status=status,
                                 pdf_url=link,
                                 saved_json=resultado,
                             )

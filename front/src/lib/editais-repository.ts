@@ -78,13 +78,11 @@ export async function setEditalInterest(
 
   try {
     const db = await getDb();
-    const result = await db.collection<EditalDoc>(EDITAIS_COLLECTION).updateOne(
-      { url_pdf: urlPdf },
-      {
-        [interested ? "$addToSet" : "$pull"]: { interessados: normalized },
-        $set: { updated_at: new Date() },
-      } as never,
-    );
+    const collection = db.collection<EditalDoc>(EDITAIS_COLLECTION);
+    const update = interested
+      ? { $addToSet: { interessados: normalized }, $set: { updated_at: new Date() } }
+      : { $pull: { interessados: normalized }, $set: { updated_at: new Date() } };
+    const result = await collection.updateOne({ url_pdf: urlPdf }, update);
     return result.matchedCount > 0;
   } catch (err) {
     console.error("[editais-repository] Falha ao gravar interesse:", err);

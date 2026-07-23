@@ -9,6 +9,7 @@ export interface EditalDoc {
   fonte?: string;
   data_limit_submissao?: Date | string | null;
   interessados?: string[];
+  updated_at?: Date;
   resultado?: {
     titulo?: string;
     titulo_edital?: string;
