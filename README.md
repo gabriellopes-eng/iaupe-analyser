@@ -112,8 +112,8 @@ editais que aquela pessoa marcou.
   responde "esse e-mail específico está inscrito nesse edital?".
 - Camadas separadas (`domain` -> `lib` -> `api`/`components`) para alta coesão e baixo
   acoplamento.
-- Roda em **modo demonstração (mock)** quando `MONGODB_URI` não está configurado, exibindo
-  um selo `DEMO`/`AO VIVO` na tela.
+- Sem dado fictício: se `MONGODB_URI` não estiver configurado ou a conexão falhar, a tela
+  mostra o estado "fora do ar" (selo `AO VIVO`/`FORA DO AR` no topo), nunca um mock.
 
 Execução rápida:
 

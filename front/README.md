@@ -27,9 +27,9 @@ npm run dev
 
 Acesse http://localhost:3000.
 
-Sem `MONGODB_URI` configurado, o app roda em **modo demonstração (mock)** com dados
-ilustrativos — útil para apresentar a tela sem depender do banco. Um selo `DEMO`/`AO VIVO`
-no topo indica o modo atual.
+Sem `MONGODB_URI` configurado (ou se a conexão falhar), o app mostra um estado de
+indisponibilidade — não existe modo de demonstração com dados fictícios. Um selo
+`AO VIVO`/`FORA DO AR` no topo indica se a conexão com o banco está funcionando.
 
 ### Conectar ao MongoDB real
 
@@ -44,7 +44,8 @@ MONGODB_URI=mongodb+srv://usuario:senha@cluster.mongodb.net/?retryWrites=true
 MONGODB_DB=iaupe-analyser
 ```
 
-Se a conexão falhar, o app registra o erro no console e volta para o mock, sem quebrar a tela.
+Se a conexão falhar, o app registra o erro no console e mostra o estado "fora do ar" na tela
+(sem dado fictício) — volta ao normal assim que a conexão for restabelecida.
 
 ## Arquitetura (alta coesão, baixo acoplamento)
 
@@ -52,7 +53,7 @@ Camadas em `src/`, cada uma dependendo apenas da camada de baixo:
 
 ```
 domain/        Tipos e regras puras (Edital, validação de e-mail, urgência de prazo, id).
-lib/           Acesso a dados: cliente Mongo, dados mock e o repositório (fallback).
+lib/           Acesso a dados: cliente Mongo e o repositório.
 app/api/       Endpoints HTTP finos, delegando ao repositório.
 components/    UI: apresentacionais + o container interativo EditaisView.
 app/           layout + page (Server Component que carrega os dados).
@@ -62,7 +63,8 @@ app/           layout + page (Server Component que carrega os dados).
   relativo a um e-mail específico), `isValidEmail`, `normalizeEmail`, `daysUntil`,
   `deadlineUrgency`, `formatPtBrDate`, `encodeId`/`decodeId`, e os metadados das
   fontes (`SOURCES`, usado só para exibição, não para seleção).
-- **`lib/editais-repository.ts`** — única porta de acesso a dados. Decide entre Mongo e mock.
+- **`lib/editais-repository.ts`** — única porta de acesso a dados; sempre consulta o Mongo real
+  e devolve `{ editais, live }` (`live: false` quando a conexão falha ou não está configurada).
 - **`app/api/editais`** — `GET` lista agregada das quatro fontes; aceita `?email=` para
   calcular `interested` por edital.
 - **`app/api/editais/[id]/interest`** — `PATCH` marca/desmarca um edital específico
@@ -85,24 +87,26 @@ tudo); o client component re-consulta com o e-mail assim que o lê do navegador:
 
 ```
 page.tsx (servidor)
-  → listEditais(null)                     // repositório decide a fonte dos dados
-  → <EditaisView initialEditais live>     // live = isMongoConfigured()
+  → listEditais(null)                       // { editais, live } vem do repositório
+  → <EditaisView initialEditais live>
 ```
 
-O booleano `live` controla o selo `DEMO` / `AO VIVO` no topo.
+O booleano `live` controla o selo `AO VIVO` / `FORA DO AR` no topo.
 
-### 2. Fonte dos dados: mock ou Mongo
+### 2. Fonte dos dados: sempre o Mongo real
 
-Toda leitura passa por `lib/editais-repository.ts`, a **única porta de dados**:
+Toda leitura passa por `lib/editais-repository.ts`, a **única porta de dados** — não existe
+fallback para dado fictício:
 
-- **Sem `MONGODB_URI`** → devolve o mock de `lib/mock-data.ts` (modo `DEMO`), calculando
-  `interested` a partir do e-mail informado.
-- **Com `MONGODB_URI`** → conecta no Mongo, consulta a collection única `editais`,
+- **Com `MONGODB_URI` e conexão OK** → conecta no Mongo, consulta a collection única `editais`,
   filtra `status=ok`, mapeia cada documento (usando o campo `fonte` para saber label/cor/
   órgão) para o tipo `Edital` e calcula `interested` conferindo se o e-mail está no array
   `interessados` daquele documento — **sem nunca devolver a lista inteira para o
   navegador** (privacidade: uma pessoa não pode ver quem mais acompanha o mesmo edital).
-- **Se a conexão falhar** → registra o erro no console e cai no mock. A tela nunca quebra.
+  Devolve `{ editais, live: true }`.
+- **Sem `MONGODB_URI`, ou se a conexão/consulta falhar** → registra o erro no console e
+  devolve `{ editais: [], live: false }`. A tela mostra o estado "fora do ar" — nunca dado
+  ilustrativo.
 
 ### 3. Identificação por e-mail (sem autenticação)
 
@@ -184,4 +188,5 @@ npm run start   # sobe o build de producao
 Protótipo funcional: seleção por **edital específico**, identificação só por e-mail
 (sem autenticação). Testado de ponta a ponta contra o Mongo real: dois e-mails
 diferentes marcam editais diferentes de forma independente, sem um ver o interesse do
-outro. Roda em modo mock quando `MONGODB_URI` não está configurado.
+outro. Sem dado fictício: se o banco não estiver acessível, a tela mostra "fora do ar"
+em vez de conteúdo de demonstração.
