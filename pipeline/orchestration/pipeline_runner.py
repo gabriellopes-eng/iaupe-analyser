@@ -2,7 +2,7 @@ import json
 import time
 from datetime import datetime, timezone
 
-from db.mongo import already_exists, save
+from db.editais import already_exists, save
 from emails.saved_record_email_notifier import SavedRecordEmailNotifier
 from pdf_pipeline.extractor import extract_text_from_pdf_url
 from .date_parser import parse_data_limit_submissao

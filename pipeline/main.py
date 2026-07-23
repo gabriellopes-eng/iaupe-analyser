@@ -1,6 +1,6 @@
 import argparse
 import os
-from db.mongo import add_interessado, list_interessados, remove_interessado
+from db.interessados import add_interessado, list_interessados, remove_interessado
 from orchestration.deadline_reminder_runner import run_deadline_reminders
 from orchestration.pipeline_runner import run_pipeline
 from orchestration.settings import parse_limit

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from db.mongo import find_deadline_candidates, mark_deadline_step_sent
+from db.deadline_reminders import find_deadline_candidates, mark_deadline_step_sent
 from emails.deadline_reminder_email_notifier import DeadlineReminderEmailNotifier
 
 from .source_registry import get_source_config

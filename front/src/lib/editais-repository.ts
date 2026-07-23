@@ -9,7 +9,7 @@ import { EditalDoc, mapDoc } from "@/lib/edital-mapper";
 // ilustrativos.
 
 // Todos os editais (de qualquer fonte) vivem numa unica collection Mongo -
-// mesma collection que a pipeline Python le/escreve (ver pipeline/db/mongo.py).
+// mesma collection que a pipeline Python le/escreve (ver pipeline/db/connection.py).
 const EDITAIS_COLLECTION = "editais";
 
 export interface EditaisResult {

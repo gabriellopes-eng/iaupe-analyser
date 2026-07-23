@@ -5,7 +5,7 @@ from sources import capes, cnpq, facepe, finep
 # catalogo central de fontes suportadas pela pipeline.
 # A regra de coleta de cada fonte (label, URL, como pegar os links) continua
 # separada por fonte; o armazenamento e unico (collection `editais`, ver
-# db/mongo.py) - cada documento se identifica pelo campo `fonte`.
+# db/connection.py) - cada documento se identifica pelo campo `fonte`.
 SOURCE_REGISTRY = {
     facepe.SOURCE_KEY: {
         "label": facepe.SOURCE_LABEL,
