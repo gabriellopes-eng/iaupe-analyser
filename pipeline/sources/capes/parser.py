@@ -62,12 +62,16 @@ def collect_open_call_pages(index_url: str, soup: BeautifulSoup) -> list[str]:
 
 
 def find_editais_table(soup: BeautifulSoup):
-    """Localiza a tabela de documentos da secao Editais."""
+    """Localiza a tabela de documentos da secao Editais.
+
+    Nao filtra por classe CSS: o gov.br ja trocou o nome da classe da tabela
+    pelo menos uma vez (de "listing" para "slate-table-block", gerada pelo
+    editor de blocos), o que zerava a coleta silenciosamente. A primeira
+    tabela apos o heading "Editais" e a que importa, independente da classe.
+    """
     heading = find_heading(soup, "Editais")
     if heading is not None:
-        table = heading.find_next(
-            lambda tag: tag.name == "table" and "listing" in (tag.get("class", []) or [])
-        )
+        table = heading.find_next("table")
         if table is not None:
             return table
 

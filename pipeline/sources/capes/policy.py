@@ -22,9 +22,14 @@ def resolve_target_year() -> int:
 
 
 def is_pdf_url(url: str) -> bool:
-    """Identifica URLs que apontam para PDF."""
+    """Identifica URLs que apontam para PDF.
+
+    O gov.br passou a servir arquivos com sufixo apos a extensao
+    (".pdf/@@display-file/file", ".pdf/@@download/file"), entao nao basta
+    checar o final da URL - o ".pdf" pode vir seguido de "/" ou "?".
+    """
     lower_url = (url or "").lower()
-    return lower_url.endswith(".pdf") or ".pdf?" in lower_url
+    return bool(re.search(r"\.pdf(?:$|[/?])", lower_url))
 
 
 def is_target_year_document(title: str, url: str, target_year: int) -> bool:
