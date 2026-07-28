@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fontes de Interesse - IAUPE Analyzer",
+  title: "IAUPE Analyzer",
   description:
     "Escolha as fontes que você acompanha e receba lembretes de prazo dos editais delas.",
   icons: {
