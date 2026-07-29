@@ -21,8 +21,8 @@ ASSETS_DIR = Path(__file__).parent / "assets"
 # o caminho do arquivo no disco, e o subtipo MIME (jpeg/png) do arquivo.
 # Anexados como inline (nao como anexo baixavel) para aparecer direto no corpo do email.
 INLINE_LOGOS = (
-    ("logo_upe", ASSETS_DIR / "LOGO-UPE.jpg", "jpeg"),
-    ("logo_iit", ASSETS_DIR / "logo-iit.png", "png"),
+    ("logo_upe", ASSETS_DIR / "upe_logo.png", "png"),
+    ("logo_iit", ASSETS_DIR / "itt_logo.png", "png"),
 )
 
 
