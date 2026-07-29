@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Edital, daysUntil } from "@/domain/edital";
+import { Edital, SourceKey, daysUntil } from "@/domain/edital";
 import { useEditaisState } from "@/hooks/useEditaisState";
 import ConnectionNote from "@/components/ConnectionNote";
 import EditalCard from "@/components/EditalCard";
@@ -25,6 +25,13 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
   const { editais, live, email, toast, handleSetEmail, handleClearEmail, toggleInterest } =
     useEditaisState(initialEditais, initialLive);
   const [view, setView] = useState<ViewMode>("all");
+  const [selectedSources, setSelectedSources] = useState<SourceKey[]>([]);
+
+  function toggleSource(source: SourceKey) {
+    setSelectedSources((prev) =>
+      prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source],
+    );
+  }
 
   const interestList = useMemo(() => editais.filter((e) => e.interested), [editais]);
   const urgentInterest = useMemo(
@@ -35,7 +42,10 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
     [interestList],
   );
 
-  const visible = view === "mine" ? interestList : editais;
+  const byView = view === "mine" ? interestList : editais;
+  const visible = selectedSources.length
+    ? byView.filter((e) => selectedSources.includes(e.source))
+    : byView;
 
   return (
     <div className="wrap">
@@ -76,6 +86,8 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
         totalCount={editais.length}
         interestCount={interestList.length}
         onViewChange={setView}
+        selectedSources={selectedSources}
+        onToggleSource={toggleSource}
       />
 
       {!live || visible.length === 0 ? (

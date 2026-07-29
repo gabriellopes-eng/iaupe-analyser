@@ -23,10 +23,16 @@
 
 /* ---- Toolbar ---- */
 .toolbar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+  display: flex; flex-direction: column; gap: 12px;
   padding: 14px 16px; margin-bottom: 18px;
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.toolbar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.toolbar-row-sources { padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.toolbar-label {
+  font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--muted); font-weight: 700;
 }
 .segmented { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
 .seg {
@@ -41,6 +47,16 @@
   padding: 1px 7px; border-radius: 20px; font-variant-numeric: tabular-nums;
 }
 .seg[aria-selected="true"] .count { color: var(--blue-bright); }
+.source-filter { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.source-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  padding: 6px 12px; border-radius: 20px; cursor: pointer; transition: all 0.15s;
+}
+.source-chip[aria-pressed="true"] {
+  background: var(--surface-2); color: var(--ink); border-color: var(--blue-bright);
+}
 
 @media (max-width: 720px) {
   .stats { grid-template-columns: 1fr; }
