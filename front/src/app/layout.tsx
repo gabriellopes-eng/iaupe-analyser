@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fontes de Interesse - IAUPE Analyzer",
+  title: "Plataforma de Monitoramento de Editais",
+
   description:
     "Escolha as fontes que você acompanha e receba lembretes de prazo dos editais delas.",
   icons: {
@@ -23,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="brand-txt">
               <p className="brand-eyebrow">Plataforma de Monitoramento de Editais</p>
-              <p className="brand-name">IAUPE Analyzer</p>
+              <p className="brand-name">Plataforma de Monitoramento de Editais</p>
             </div>
           </div>
         </header>

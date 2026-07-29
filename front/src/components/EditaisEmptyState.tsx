@@ -12,7 +12,7 @@ export default function EditaisEmptyState({ live, hasEmail }: EditaisEmptyStateP
       <div className="empty empty-error">
         <AlertIcon />
         <p>
-          O sistema está fora do ar no momento - não foi possível carregar os editais. Tente
+          O sistema está fora do ar no momento, não foi possível carregar os editais. Tente
           novamente em alguns instantes.
         </p>
       </div>

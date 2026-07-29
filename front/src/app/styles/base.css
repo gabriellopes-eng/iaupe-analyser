@@ -22,7 +22,6 @@ header.top {
 }
 .emblem {
   height: 44px; border-radius: 8px; flex: none;
-  background: #fff;
   padding: 5px 8px;
   display: grid; place-items: center;
   overflow: hidden;
