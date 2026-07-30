@@ -69,6 +69,15 @@
   border-radius: 20px; padding: 4px 10px;
 }
 
+.card-link {
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 14px; padding: 9px 16px;
+  background: var(--blue-bright); color: #fff;
+  font-size: 13px; font-weight: 700; text-decoration: none;
+  border-radius: 8px; transition: background 0.15s;
+}
+.card-link:hover { background: var(--blue); }
+
 .status-line {
   margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line-soft);
   font-size: 12.5px; display: flex; align-items: center; gap: 8px; color: var(--muted);

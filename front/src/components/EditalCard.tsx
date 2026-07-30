@@ -68,6 +68,15 @@ export default function EditalCard({ edital, onToggle }: EditalCardProps) {
         ))}
       </div>
 
+      <a
+        className="card-link"
+        href={edital.urlPdf}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Acessar Edital
+      </a>
+
       <div className="status-line">
         {edital.interested ? (
           <>
