@@ -11,6 +11,8 @@ interface ToolbarProps {
   onViewChange: (view: ViewMode) => void;
   selectedSources: SourceKey[];
   onToggleSource: (source: SourceKey) => void;
+  query: string;
+  onQueryChange: (query: string) => void;
 }
 
 // Barra de filtro: Todos os editais x apenas os marcados como interesse,
@@ -22,6 +24,8 @@ export default function Toolbar({
   onViewChange,
   selectedSources,
   onToggleSource,
+  query,
+  onQueryChange,
 }: ToolbarProps) {
   return (
     <div className="toolbar">
@@ -46,6 +50,14 @@ export default function Toolbar({
             Meus interesses <span className="count">{interestCount}</span>
           </button>
         </div>
+        <input
+          type="search"
+          className="search-input"
+          placeholder="Buscar edital por título..."
+          aria-label="Buscar edital por título"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+        />
       </div>
       <div className="toolbar-row toolbar-row-sources">
         <span className="toolbar-label">Fonte</span>

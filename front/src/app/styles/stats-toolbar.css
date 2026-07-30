@@ -47,6 +47,14 @@
   padding: 1px 7px; border-radius: 20px; font-variant-numeric: tabular-nums;
 }
 .seg[aria-selected="true"] .count { color: var(--blue-bright); }
+.search-input {
+  flex: 1 1 200px; min-width: 160px; margin-left: auto;
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 12px; font-family: var(--sans); font-size: 13.5px;
+  color: var(--ink); background: var(--surface);
+}
+.search-input::placeholder { color: var(--muted); }
+.search-input:focus { outline: 2px solid var(--blue-bright); outline-offset: 1px; }
 .source-filter { display: inline-flex; flex-wrap: wrap; gap: 8px; }
 .source-chip {
   display: inline-flex; align-items: center; gap: 6px;

@@ -26,6 +26,7 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
     useEditaisState(initialEditais, initialLive);
   const [view, setView] = useState<ViewMode>("all");
   const [selectedSources, setSelectedSources] = useState<SourceKey[]>([]);
+  const [query, setQuery] = useState("");
 
   function toggleSource(source: SourceKey) {
     setSelectedSources((prev) =>
@@ -43,9 +44,11 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
   );
 
   const byView = view === "mine" ? interestList : editais;
-  const visible = selectedSources.length
+  const bySource = selectedSources.length
     ? byView.filter((e) => selectedSources.includes(e.source))
     : byView;
+  const q = query.trim().toLowerCase();
+  const visible = q ? bySource.filter((e) => e.titulo.toLowerCase().includes(q)) : bySource;
 
   return (
     <div className="wrap">
@@ -88,6 +91,8 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
         onViewChange={setView}
         selectedSources={selectedSources}
         onToggleSource={toggleSource}
+        query={query}
+        onQueryChange={setQuery}
       />
 
       {!live || visible.length === 0 ? (
