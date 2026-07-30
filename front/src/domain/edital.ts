@@ -112,3 +112,36 @@ export function encodeId(urlPdf: string): string {
 export function decodeId(id: string): string {
   return Buffer.from(id, "base64url").toString("utf-8");
 }
+
+export interface EditaisPage {
+  items: Edital[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+// Paginacao por cursor sobre uma lista ja ordenada (por prazo, ver
+// listEditais em editais-repository.ts). O cursor e o `id` do ultimo edital
+// recebido na pagina anterior; a proxima pagina comeca logo depois dele na
+// MESMA ordenacao - por isso a lista passada aqui precisa ja estar ordenada
+// do jeito que a UI espera ver (prazo mais proximo primeiro, com o id como
+// desempate estavel entre prazos iguais).
+// Cursor desconhecido (item removido entre uma pagina e outra) equivale a
+// "fim da lista", em vez de reiniciar do zero - evita duplicar itens.
+export function paginateEditais(
+  sorted: Edital[],
+  cursor: string | null,
+  limit: number,
+): EditaisPage {
+  let start = 0;
+  if (cursor) {
+    const idx = sorted.findIndex((e) => e.id === cursor);
+    start = idx === -1 ? sorted.length : idx + 1;
+  }
+  const items = sorted.slice(start, start + limit);
+  const hasMore = start + items.length < sorted.length;
+  return {
+    items,
+    nextCursor: hasMore ? items[items.length - 1].id : null,
+    hasMore,
+  };
+}

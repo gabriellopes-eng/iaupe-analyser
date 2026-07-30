@@ -43,12 +43,18 @@ export async function listEditais(email: string | null): Promise<EditaisResult> 
       .map((doc) => mapDoc(doc as EditalDoc, email))
       .filter((e): e is Edital => e !== null);
 
-    // ordena por prazo mais proximo primeiro; sem prazo vai para o fim
+    // Ordena por prazo mais proximo primeiro; sem prazo vai para o fim.
+    // Desempate por `id` quando o prazo e igual (inclusive null == null):
+    // sem isso a ordem de itens empatados dependeria da ordem de retorno do
+    // Mongo, que nao e garantida - e a paginacao por cursor precisa de uma
+    // ordenacao 100% deterministica pra nao pular nem repetir itens entre paginas.
     all.sort((a, b) => {
-      if (a.deadline === b.deadline) return 0;
-      if (!a.deadline) return 1;
-      if (!b.deadline) return -1;
-      return a.deadline < b.deadline ? -1 : 1;
+      if (a.deadline !== b.deadline) {
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return a.deadline < b.deadline ? -1 : 1;
+      }
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
     return { editais: excludeExpired(all), live: true };
   } catch (err) {
