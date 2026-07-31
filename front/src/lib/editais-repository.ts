@@ -1,6 +1,6 @@
-import { Edital, daysUntil, decodeId, normalizeEmail } from "@/domain/edital";
+import { Edital, EditalDetail, daysUntil, decodeId, normalizeEmail } from "@/domain/edital";
 import { getDb, isMongoConfigured } from "@/lib/mongo";
-import { EditalDoc, mapDoc } from "@/lib/edital-mapper";
+import { EditalDoc, mapDoc, mapDocDetail } from "@/lib/edital-mapper";
 
 // Repositorio de editais: unica porta de acesso a dados (I/O) para a UI/API.
 // A traducao doc->Edital fica em edital-mapper.ts; aqui so entra/sai do Mongo.
@@ -60,6 +60,36 @@ export async function listEditais(email: string | null): Promise<EditaisResult> 
   } catch (err) {
     console.error("[editais-repository] Falha ao consultar Mongo:", err);
     return { editais: [], live: false };
+  }
+}
+
+// Busca UM edital completo (todos os campos de resultado, para a pagina de
+// detalhamento) pelo `id` da rota. Diferente de listEditais, aqui vale a pena
+// buscar so o documento certo no Mongo (find + filtro), em vez de carregar
+// tudo em memoria - a pagina de detalhamento so precisa de um edital por vez.
+export async function getEditalDetail(
+  id: string,
+  email: string | null,
+): Promise<EditalDetail | null> {
+  if (!isMongoConfigured()) return null;
+
+  let urlPdf: string;
+  try {
+    urlPdf = decodeId(id);
+  } catch {
+    return null;
+  }
+
+  try {
+    const db = await getDb();
+    const doc = await db
+      .collection<EditalDoc>(EDITAIS_COLLECTION)
+      .findOne({ url_pdf: urlPdf, status: "ok" });
+    if (!doc) return null;
+    return mapDocDetail(doc, email);
+  } catch (err) {
+    console.error("[editais-repository] Falha ao buscar detalhe do edital:", err);
+    return null;
   }
 }
 

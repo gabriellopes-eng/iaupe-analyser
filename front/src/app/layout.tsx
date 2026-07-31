@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="top-inner">
             <div className="emblem">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/upe_logo.png" alt="Universidade de Pernambuco" />
+              <img src="/upe_logo_branco.png" alt="Universidade de Pernambuco" />
             </div>
             <div className="brand-txt">
               <p className="brand-eyebrow">Plataforma de Monitoramento de Editais</p>

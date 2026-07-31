@@ -9,7 +9,9 @@
   position: relative; background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: 20px 20px 18px 22px; box-shadow: var(--shadow);
   display: flex; flex-direction: column; transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
+  cursor: pointer;
 }
+.card:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .card::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
   border-radius: var(--radius) 0 0 var(--radius);
