@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 
-import { Edital, daysUntil } from "@/domain/edital";
+import { Edital, SourceKey, daysUntil } from "@/domain/edital";
 import { useEditaisState } from "@/hooks/useEditaisState";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import ConnectionNote from "@/components/ConnectionNote";
 import EditalCard from "@/components/EditalCard";
 import EditaisEmptyState from "@/components/EditaisEmptyState";
@@ -14,6 +15,9 @@ import Toolbar, { ViewMode } from "@/components/Toolbar";
 
 interface EditaisViewProps {
   initialEditais: Edital[];
+  initialNextCursor: string | null;
+  initialHasMore: boolean;
+  initialTotalCount: number;
   live: boolean;
 }
 
@@ -21,12 +25,43 @@ interface EditaisViewProps {
 // useEditaisState; aqui so entra a apresentacao (JSX) do painel de editais.
 // Sem dado fake: se o Mongo estiver fora do ar, mostra isso claramente em vez
 // de uma demonstracao ilustrativa.
-export default function EditaisView({ initialEditais, live: initialLive }: EditaisViewProps) {
-  const { editais, live, email, toast, handleSetEmail, handleClearEmail, toggleInterest } =
-    useEditaisState(initialEditais, initialLive);
+export default function EditaisView({
+  initialEditais,
+  initialNextCursor,
+  initialHasMore,
+  initialTotalCount,
+  live: initialLive,
+}: EditaisViewProps) {
+  const {
+    editais,
+    interestList,
+    totalCount,
+    hasMore,
+    loadingMore,
+    loadMore,
+    live,
+    email,
+    toast,
+    handleSetEmail,
+    handleClearEmail,
+    toggleInterest,
+  } = useEditaisState({
+    editais: initialEditais,
+    live: initialLive,
+    nextCursor: initialNextCursor,
+    hasMore: initialHasMore,
+    totalCount: initialTotalCount,
+  });
   const [view, setView] = useState<ViewMode>("all");
+  const [selectedSources, setSelectedSources] = useState<SourceKey[]>([]);
+  const [query, setQuery] = useState("");
 
-  const interestList = useMemo(() => editais.filter((e) => e.interested), [editais]);
+  function toggleSource(source: SourceKey) {
+    setSelectedSources((prev) =>
+      prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source],
+    );
+  }
+
   const urgentInterest = useMemo(
     () => interestList.filter((e) => {
       const d = daysUntil(e.deadline);
@@ -35,7 +70,16 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
     [interestList],
   );
 
-  const visible = view === "mine" ? interestList : editais;
+  const byView = view === "mine" ? interestList : editais;
+  const bySource = selectedSources.length
+    ? byView.filter((e) => selectedSources.includes(e.source))
+    : byView;
+  const q = query.trim().toLowerCase();
+  const visible = q ? bySource.filter((e) => e.titulo.toLowerCase().includes(q)) : bySource;
+
+  // Scroll infinito: so faz sentido na visao "Todos" (paginada). "Meus
+  // interesses" ja vem completa do servidor (ver useEditaisState.ts).
+  const sentinelRef = useInfiniteScroll(view === "all" && hasMore, loadMore);
 
   return (
     <div className="wrap">
@@ -56,7 +100,7 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
       {live && <EmailGate email={email} onSetEmail={handleSetEmail} onClearEmail={handleClearEmail} />}
 
       <section className="stats" aria-label="Resumo">
-        <StatTile label="Editais monitorados" value={editais.length} sub="FACEPE · CNPq · FINEP · CAPES" />
+        <StatTile label="Editais monitorados" value={totalCount} sub="FACEPE · CNPq · FINEP · CAPES" />
         <StatTile
           label="De interesse"
           value={interestList.length}
@@ -73,19 +117,30 @@ export default function EditaisView({ initialEditais, live: initialLive }: Edita
 
       <Toolbar
         view={view}
-        totalCount={editais.length}
+        totalCount={totalCount}
         interestCount={interestList.length}
         onViewChange={setView}
+        selectedSources={selectedSources}
+        onToggleSource={toggleSource}
+        query={query}
+        onQueryChange={setQuery}
       />
 
       {!live || visible.length === 0 ? (
         <EditaisEmptyState live={live} hasEmail={Boolean(email)} />
       ) : (
-        <div className="grid">
-          {visible.map((edital) => (
-            <EditalCard key={edital.id} edital={edital} onToggle={toggleInterest} />
-          ))}
-        </div>
+        <>
+          <div className="grid">
+            {visible.map((edital) => (
+              <EditalCard key={edital.id} edital={edital} onToggle={toggleInterest} />
+            ))}
+          </div>
+          {view === "all" && hasMore && (
+            <div ref={sentinelRef} className="load-more-sentinel">
+              {loadingMore && "Carregando mais editais..."}
+            </div>
+          )}
+        </>
       )}
 
       <ConnectionNote live={live} />

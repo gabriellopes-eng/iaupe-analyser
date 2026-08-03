@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   Edital,
   daysUntil,
@@ -14,14 +16,34 @@ interface EditalCardProps {
 }
 
 // Cartao de edital: apresenta os dados e delega a marcacao de interesse (por
-// e-mail, sem autenticacao) ao container.
+// e-mail, sem autenticacao) ao container. O card inteiro navega pra pagina de
+// detalhamento (/editais/[id]) ao clicar - exceto a estrela e o link "Acessar
+// Edital", que tem sua propria acao e por isso interrompem a propagacao do
+// clique (senao os dois cliques disparariam juntos).
 export default function EditalCard({ edital, onToggle }: EditalCardProps) {
+  const router = useRouter();
   const days = daysUntil(edital.deadline);
   const urgency = deadlineUrgency(days);
   const daysLabel = days === null ? "-" : `${days}d`;
 
+  function goToDetail() {
+    router.push(`/editais/${edital.id}`);
+  }
+
   return (
-    <article className="card" data-interest={edital.interested}>
+    <article
+      className="card"
+      data-interest={edital.interested}
+      role="link"
+      tabIndex={0}
+      onClick={goToDetail}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          goToDetail();
+        }
+      }}
+    >
       <div className="card-head">
         <div>
           <span className="src-chip">
@@ -36,6 +58,7 @@ export default function EditalCard({ edital, onToggle }: EditalCardProps) {
           aria-pressed={edital.interested}
           aria-label={edital.interested ? "Remover dos interesses" : "Marcar como interesse"}
           onClick={(e) => {
+            e.stopPropagation();
             const btn = e.currentTarget;
             btn.classList.remove("pop");
             void btn.offsetWidth;
@@ -67,6 +90,16 @@ export default function EditalCard({ edital, onToggle }: EditalCardProps) {
           </span>
         ))}
       </div>
+
+      <a
+        className="card-link"
+        href={edital.urlPdf}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      >
+        Acessar Edital
+      </a>
 
       <div className="status-line">
         {edital.interested ? (

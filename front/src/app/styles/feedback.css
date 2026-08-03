@@ -20,6 +20,18 @@
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast svg { width: 18px; height: 18px; flex: none; }
 
+/* So no mobile: em vez de pilula flutuante centralizada, esticada e colada
+   na borda inferior da tela (comportamento so ativo abaixo de 640px de
+   largura - PC/tablet continuam com a pilula normal). */
+@media (max-width: 640px) {
+  .toast {
+    left: 0; right: 0; bottom: 0; max-width: 100%;
+    justify-content: center; border-radius: 0;
+    transform: translateY(100%);
+  }
+  .toast.show { transform: translateY(0); }
+}
+
 /* ---- Rodape / selo de status ---- */
 footer.note {
   margin-top: 34px; padding: 16px 18px; font-size: 12.5px; color: var(--muted);

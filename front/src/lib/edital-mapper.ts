@@ -1,4 +1,4 @@
-import { Edital, SOURCES, encodeId, isSourceKey, normalizeEmail } from "@/domain/edital";
+import { Edital, EditalDetail, SOURCES, encodeId, isSourceKey, normalizeEmail } from "@/domain/edital";
 
 // Traducao entre o documento bruto salvo no Mongo (EditalDoc) e o tipo de
 // dominio Edital usado pela UI/API. Camada pura, sem I/O.
@@ -15,6 +15,12 @@ export interface EditalDoc {
     titulo_edital?: string;
     descricao?: string;
     areas_interesse?: unknown;
+    publico_alvo?: string;
+    criterios_publico_alvo?: unknown;
+    criterios_proponente?: unknown;
+    observacoes?: unknown;
+    cronograma?: unknown;
+    segmentos?: unknown;
   };
 }
 
@@ -41,6 +47,14 @@ function pickAreas(doc: EditalDoc): string[] {
     .map((v) => String(v).trim())
     .filter(Boolean)
     .slice(0, 2);
+}
+
+// Mesma normalizacao de pickAreas, mas sem limitar quantidade - usada nos
+// campos de lista da pagina de detalhamento (cronograma, observacoes etc.),
+// que mostram tudo, ao contrario do card no grid (que so mostra 2 areas).
+function toStringList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((v) => String(v).trim()).filter(Boolean);
 }
 
 function toIso(value: Date | string | null | undefined): string | null {
@@ -70,5 +84,25 @@ export function mapDoc(doc: EditalDoc, email: string | null): Edital | null {
     deadline: toIso(doc.data_limit_submissao),
     areas: pickAreas(doc),
     interested: email ? interessados.includes(normalizeEmail(email)) : false,
+  };
+}
+
+// Versao completa, usada so na pagina de detalhamento de UM edital -
+// reaproveita mapDoc para os campos que o card ja usa, e acrescenta os
+// campos de texto/lista que so fazem sentido numa tela dedicada.
+export function mapDocDetail(doc: EditalDoc, email: string | null): EditalDetail | null {
+  const base = mapDoc(doc, email);
+  if (!base) return null;
+
+  const r = doc.resultado || {};
+  return {
+    ...base,
+    descricao: (r.descricao || "").toString().trim(),
+    publicoAlvo: (r.publico_alvo || "").toString().trim(),
+    criteriosPublicoAlvo: toStringList(r.criterios_publico_alvo),
+    criteriosProponente: toStringList(r.criterios_proponente),
+    observacoes: toStringList(r.observacoes),
+    cronograma: toStringList(r.cronograma),
+    segmentos: toStringList(r.segmentos),
   };
 }
