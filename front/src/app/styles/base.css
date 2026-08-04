@@ -28,11 +28,7 @@ header.top {
 }
 .emblem img { height: 34px; width: auto; display: block; }
 .brand-txt { display: flex; flex-direction: column; }
-.brand-eyebrow {
-  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-  color: #aecbf0; font-weight: 600; margin: 0 0 2px;
-}
-.brand-name { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.2px; }
+.brand-name { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.2px; text-align: center; }
 
 /* ---- Intro ---- */
 .intro { padding: 26px 0 6px; max-width: 62ch; }

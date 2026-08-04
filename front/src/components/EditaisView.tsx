@@ -145,7 +145,13 @@ export default function EditaisView({
 
       <ConnectionNote live={live} />
 
-      <Toast message={toast.message} show={toast.show} tone={toast.tone} />
+      <Toast
+        message={toast.message}
+        show={toast.show}
+        tone={toast.tone}
+        needsEmail={toast.needsEmail}
+        onSetEmail={handleSetEmail}
+      />
     </div>
   );
 }

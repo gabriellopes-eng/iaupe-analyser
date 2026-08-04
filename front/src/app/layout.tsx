@@ -30,9 +30,6 @@ export default function RootLayout({
               />
             </div>
             <div className="brand-txt">
-              <p className="brand-eyebrow">
-                Plataforma de Monitoramento de Editais
-              </p>
               <p className="brand-name">
                 Plataforma de Monitoramento de Editais
               </p>
