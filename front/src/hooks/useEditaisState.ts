@@ -11,6 +11,8 @@ export interface ToastState {
   message: string;
   tone: "gold" | "muted";
   show: boolean;
+  // pediu email: mostra o campo de email junto do toast
+  needsEmail: boolean;
 }
 
 interface EditaisPageResponse {
@@ -57,7 +59,12 @@ export function useEditaisState(initial: InitialState) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [live, setLive] = useState<boolean>(initial.live);
   const [email, setEmail] = useState<string | null>(null);
-  const [toast, setToast] = useState<ToastState>({ message: "", tone: "gold", show: false });
+  const [toast, setToast] = useState<ToastState>({
+    message: "",
+    tone: "gold",
+    show: false,
+    needsEmail: false,
+  });
 
   // le o e-mail salvo no navegador e re-consulta a primeira pagina com o
   // interesse correto (o carregamento inicial no servidor nao tem acesso ao
@@ -71,9 +78,12 @@ export function useEditaisState(initial: InitialState) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function showToast(message: string, tone: ToastState["tone"]) {
-    setToast({ message, tone, show: true });
-    window.setTimeout(() => setToast((t) => ({ ...t, show: false })), 2600);
+  // se precisa de email, nao some sozinho (senao a pessoa nem da tempo de digitar)
+  function showToast(message: string, tone: ToastState["tone"], needsEmail = false) {
+    setToast({ message, tone, show: true, needsEmail });
+    if (!needsEmail) {
+      window.setTimeout(() => setToast((t) => ({ ...t, show: false })), 2600);
+    }
   }
 
   // recomeca a paginacao do zero (cursor null) - usado quando o e-mail muda,
@@ -129,7 +139,7 @@ export function useEditaisState(initial: InitialState) {
 
   async function toggleInterest(edital: Edital) {
     if (!email) {
-      showToast("Digite seu e-mail para marcar interesse.", "muted");
+      showToast("Digite seu e-mail para marcar interesse.", "muted", true);
       return;
     }
 

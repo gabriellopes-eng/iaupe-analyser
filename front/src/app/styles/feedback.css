@@ -17,8 +17,24 @@
   opacity: 0; pointer-events: none; transition: opacity 0.25s, transform 0.25s; max-width: 90vw; z-index: 50;
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
-.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .toast svg { width: 18px; height: 18px; flex: none; }
+
+/* Quando tem o campo de e-mail embutido, o toast vira coluna (mensagem em
+   cima, formulario embaixo) em vez da linha unica padrao. */
+.toast-with-form { flex-direction: column; align-items: stretch; gap: 10px; }
+.toast-row { display: flex; align-items: center; gap: 10px; }
+.toast-email-form { display: flex; gap: 8px; }
+.toast-email-form input {
+  flex: 1; min-width: 0; border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08); color: #fff; border-radius: 8px;
+  padding: 7px 10px; font-size: 13px; font-family: var(--sans);
+}
+.toast-email-form input::placeholder { color: rgba(255, 255, 255, 0.55); }
+.toast-email-form button {
+  border: none; background: var(--gold); color: #1a1a2e; font-weight: 700;
+  font-size: 13px; border-radius: 8px; padding: 7px 14px; cursor: pointer; white-space: nowrap;
+}
 
 /* So no mobile: em vez de pilula flutuante centralizada, esticada e colada
    na borda inferior da tela (comportamento so ativo abaixo de 640px de
