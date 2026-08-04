@@ -3,7 +3,7 @@
   text-align: center; padding: 60px 20px; color: var(--muted);
   background: var(--surface); border: 1px dashed var(--line); border-radius: var(--radius);
 }
-.empty svg { width: 40px; height: 40px; opacity: 0.5; margin-bottom: 12px; }
+.empty  { width: 40px; height: 40px; opacity: 0.5; margin-bottom: 12px; }
 .empty p { margin: 0; font-size: 14px; }
 .empty-error { border-style: solid; border-color: color-mix(in srgb, var(--red) 35%, var(--line)); }
 .empty-error svg { color: var(--red); opacity: 0.8; }
