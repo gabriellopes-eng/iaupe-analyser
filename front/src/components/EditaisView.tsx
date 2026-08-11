@@ -127,7 +127,7 @@ export default function EditaisView({
       />
 
       {!live || visible.length === 0 ? (
-        <EditaisEmptyState live={live} hasEmail={Boolean(email)} />
+        <EditaisEmptyState live={live} hasEmail={Boolean(email)} onSetEmail={handleSetEmail} />
       ) : (
         <>
           <div className="grid">
