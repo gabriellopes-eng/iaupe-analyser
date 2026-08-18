@@ -197,6 +197,7 @@ export function useEditaisState(initial: InitialState) {
     live,
     email,
     toast,
+    showToast,
     handleSetEmail,
     handleClearEmail,
     toggleInterest,

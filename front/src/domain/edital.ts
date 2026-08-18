@@ -81,8 +81,13 @@ export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+// Remove tambem espacos internos (nao so as bordas), pra ficar consistente
+// com sandbox/import_docentes_interesse.py::normalize_email - sem isso um
+// e-mail com espaco residual (ex: "luis. barros@upe.br", visto na planilha
+// de docentes) normalizaria diferente entre o import Python e o front,
+// impedindo o docente de encontrar o proprio registro.
 export function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 export type DeadlineUrgency = "urgent" | "soon" | "calm" | "none";

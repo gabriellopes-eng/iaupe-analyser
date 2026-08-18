@@ -8,3 +8,4 @@ google-genai
 certifi
 pytesseract
 pypdfium2
+openpyxl
