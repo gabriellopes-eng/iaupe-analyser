@@ -3,7 +3,7 @@ from typing import Optional
 
 from pymongo.errors import PyMongoError
 
-from .connection import coll
+from .collections import coll
 
 
 def find_deadline_candidates(

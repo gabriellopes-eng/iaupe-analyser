@@ -14,7 +14,15 @@ from .send_email_use_case import SendEmailUseCase
 class SavedRecordEmailNotifier:
     """Notifica por email quando um registro foi salvo no MongoDB."""
     # Esta classe representa a regra especifica do projeto:
-    # depois de salvar no MongoDB, transformar os dados em HTML e enviar para teste.
+    # depois de salvar no MongoDB, transformar os dados em HTML e enviar.
+    #
+    # E o MESMO e-mail para dois publicos, so muda o destinatario:
+    # - sem `recipient_email`, vai para o endereco institucional (RECIPIENT_EMAIL),
+    #   que acompanha todos os editais;
+    # - com `recipient_email`, vai para um docente especifico cujas areas/segmentos
+    #   casam com o edital (ver orchestration/new_edital_notify_runner.py).
+    # Um layout so para os dois casos: quem le o e-mail ve exatamente o mesmo
+    # conteudo, e so existe um HTML para manter.
 
     def __init__(self, test_recipient: str | None = None) -> None:
         # O destinatario de teste vem do .env para nao ficar fixo no codigo.
@@ -43,9 +51,14 @@ class SavedRecordEmailNotifier:
         source_id: str,
         pdf_url: str,
         saved_json: dict,
+        recipient_email: str | None = None,
     ) -> None:
+        # Um envio por chamada, com destinatario unico: nunca em copia/Cc, para
+        # um docente nao ver o endereco de outro.
+        destinatario = (recipient_email or self.test_recipient or "").strip()
+
         # Se nao houver destinatario, o fluxo simplesmente ignora a notificacao.
-        if not self.is_enabled():
+        if not destinatario:
             return
 
         # O caso de uso e criado sob demanda, apenas quando realmente vamos enviar.
@@ -71,7 +84,7 @@ class SavedRecordEmailNotifier:
         # Aqui a notificacao sai da regra de negocio e entra no caso de uso generico de email.
         self._use_case.execute(
             {
-                "to": self.test_recipient,
+                "to": destinatario,
                 "subject": subject,
                 "html": html_body,
             }

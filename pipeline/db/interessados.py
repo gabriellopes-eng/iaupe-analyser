@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from pymongo.errors import PyMongoError
 
-from .connection import coll
+from .collections import coll
 
 
 def normalize_email(email: str) -> str:

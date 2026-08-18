@@ -3,7 +3,8 @@ from typing import Optional
 
 from pymongo.errors import DuplicateKeyError, PyMongoError
 
-from .connection import coll, disable_mongo
+from .collections import coll
+from .connection import disable_mongo
 
 
 # Essa funcao serve para verificar se um edital ja foi processado com status "ok"

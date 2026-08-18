@@ -2,6 +2,8 @@ import argparse
 import os
 from db.interessados import add_interessado, list_interessados, remove_interessado
 from orchestration.deadline_reminder_runner import run_deadline_reminders
+from orchestration.docente_notification_service import DEFAULT_MAX_EMAILS, DEFAULT_MAX_POR_DOCENTE
+from orchestration.new_edital_notify_runner import run_new_edital_notifications
 from orchestration.pipeline_runner import run_pipeline
 from orchestration.settings import parse_limit
 from orchestration.source_registry import DEFAULT_SOURCE, SOURCE_REGISTRY
@@ -37,6 +39,38 @@ def build_parser() -> argparse.ArgumentParser:
         "--reminder-steps",
         default=os.getenv("DEADLINE_REMINDER_STEPS") or "30,15,7",
         help="Marcos de lembrete separados por virgula. Ex: 30,15,7",
+    )
+    parser.add_argument(
+        "--notify-editais",
+        action="store_true",
+        help=(
+            "Simula a notificacao de docentes sobre editais ja salvos que casam com as "
+            "areas/segmentos deles e ainda nao foram avisados (backfill). "
+            "Use --source all para todas as fontes e --apply para enviar de verdade"
+        ),
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Com --notify-editais: envia de verdade (sem isso e so simulacao)",
+    )
+    parser.add_argument(
+        "--max-por-docente",
+        type=int,
+        default=DEFAULT_MAX_POR_DOCENTE,
+        help=(
+            "Com --notify-editais: maximo de e-mails para a MESMA pessoa numa execucao "
+            f"(padrao {DEFAULT_MAX_POR_DOCENTE}). O resto fica para a proxima rodada"
+        ),
+    )
+    parser.add_argument(
+        "--max-emails",
+        type=int,
+        default=DEFAULT_MAX_EMAILS,
+        help=(
+            "Com --notify-editais: maximo de e-mails no total por execucao "
+            f"(padrao {DEFAULT_MAX_EMAILS})"
+        ),
     )
     parser.add_argument(
         "--url",
@@ -99,6 +133,15 @@ if __name__ == "__main__":
                 print(f"Interessados em {args.url} ({len(emails)}):")
                 for email in emails:
                     print(f"- {email}")
+        elif args.notify_editais:
+            # varredura avulsa; no dia a dia a propria pipeline ja notifica ao
+            # salvar cada edital novo (ver orchestration/pipeline_runner.py).
+            run_new_edital_notifications(
+                source_key=args.source,
+                apply=args.apply,
+                max_por_docente=args.max_por_docente,
+                max_emails=args.max_emails,
+            )
         elif args.run_reminders:
             run_deadline_reminders(
                 source_key=args.source,
