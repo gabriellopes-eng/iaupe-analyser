@@ -16,10 +16,11 @@
 .email-gate-change:hover { background: var(--line-soft); }
 .email-gate-input-row { display: inline-flex; gap: 8px; }
 .email-gate input[type="email"] {
-  font-family: var(--sans); font-size: 13.5px; padding: 8px 12px;
+  font-family: var(--sans); font-size: 16px; padding: 8px 12px;
   border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2);
   color: var(--ink); min-width: 220px;
 }
+.email-gate input[type="email"]::placeholder { font-size: 13.5px; }
 .email-gate input[type="email"]:focus { outline: 2px solid var(--blue-bright); outline-offset: 1px; }
 .email-gate button[type="submit"] {
   border: none; background: var(--blue-bright); color: #fff;
