@@ -140,12 +140,18 @@ def notify_docentes_for_edital(
     paralela que poderia divergir do envio real.
     """
     resultado = resultado or {}
+
+    # PASSO 1-3 (o CORACAO do algoritmo, quem casa) acontecem aqui dentro -
+    # ver orchestration/docente_match.py::match_docentes para a comparacao
+    # area/segmento em si.
     matches = match_docentes(
         docentes,
         resultado.get("areas_interesse"),
         resultado.get("segmentos"),
     )
 
+    # PASSO 4 - das pessoas que casaram, aplica as travas de seguranca (quem ja
+    # foi avisado, limite por pessoa, limite total) - ver select_recipients().
     recipients = select_recipients(
         matches,
         already_notified=already_notified,
