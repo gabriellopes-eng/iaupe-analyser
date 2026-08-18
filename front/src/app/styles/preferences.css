@@ -29,7 +29,8 @@
 }
 
 .preferences-save {
-  margin-top: 8px; border: none; background: var(--blue-bright); color: #fff;
+  display: block; margin-top: 8px; margin-left: auto;
+  border: none; background: var(--blue-bright); color: #fff;
   font-family: var(--sans); font-size: 14px; font-weight: 700;
   padding: 11px 22px; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
 }
@@ -38,4 +39,5 @@
 
 @media (max-width: 640px) {
   .preferences { padding: 16px; }
+  .preferences-save { width: 100%; }
 }
