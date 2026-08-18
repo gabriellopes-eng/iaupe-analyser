@@ -1,4 +1,9 @@
 .env
 *.env
 venv/
+.venv/
 __pycache__/
+
+# planilhas com dados pessoais (e-mails de docentes etc.) nao devem ir pro git
+*.xlsx
+*.xls

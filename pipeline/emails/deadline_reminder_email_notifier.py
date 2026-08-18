@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from html import escape
 
@@ -9,6 +8,7 @@ from dotenv import load_dotenv
 from .date_format import format_ptbr_date
 from .email_branding import LOGO_HEADER_HTML
 from .send_email_use_case import SendEmailUseCase
+from .smtp_config import is_smtp_configured
 from .smtp_email_service import SmtpEmailService
 
 
@@ -27,9 +27,7 @@ class DeadlineReminderEmailNotifier:
         self._use_case: SendEmailUseCase | None = None
 
     def is_smtp_configured(self) -> bool:
-        return bool((os.getenv("SMTP_USER") or "").strip()) and bool(
-            (os.getenv("SMTP_PASS") or "").strip()
-        )
+        return is_smtp_configured()
 
     def resolve_edital_titulo(self, saved_json: dict) -> str:
         titulo = str(saved_json.get("titulo") or saved_json.get("titulo_edital") or "").strip()

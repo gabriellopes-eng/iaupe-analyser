@@ -323,6 +323,58 @@ Automação dos lembretes:
 - Workflow: `.github/workflows/deadline-reminders.yml`
 - Agendado diariamente e com suporte a disparo manual (`workflow_dispatch`).
 
+## Notificação de Editais Novos por Área/Segmento
+
+Cada docente escolhe na plataforma as **áreas de interesse** e os **segmentos** que
+acompanha (tela "Minhas áreas de interesse", gravada na collection `docentes`). A
+pipeline usa isso para avisar só quem tem a ver com o edital.
+
+São três disparos, não confundir — os dois primeiros são **o mesmo e-mail**
+(`SavedRecordEmailNotifier`), só muda o destinatário:
+
+| Disparo | Quando | Para quem |
+| --- | --- | --- |
+| Edital novo (institucional) | edital novo salvo | `RECIPIENT_EMAIL` — um endereço que recebe **tudo** |
+| **Edital novo por preferência** | edital novo salvo | cada docente cujas áreas/segmentos casam com o edital |
+| Lembrete de prazo | D-30/D-15/D-7 | quem marcou interesse **naquele** edital |
+
+Como funciona a notificação por preferência:
+
+1. Ao salvar um edital novo com análise ok e prazo aberto, a pipeline carrega uma
+   única vez a lista de docentes com preferência cadastrada.
+2. Cruza `resultado.areas_interesse` e `resultado.segmentos` do edital com as
+   preferências do docente. A regra é **OU**: basta uma área **ou** um segmento em
+   comum. Edital sem classificação nenhuma não notifica ninguém.
+3. A comparação é normalizada (sem espaços, sem diferença de caixa), então valores
+   legados da planilha como `"Tecnologia da informação( TI)"` casam com o
+   `"Tecnologia da informação(TI)"` do catálogo atual.
+4. Envia um e-mail **individual** por docente (nunca em cópia/Cc) — o mesmo layout
+   que já vai para o endereço institucional — e marca o envio em
+   `match_notification.sent_emails`, no próprio documento do edital: reprocessar a
+   fonte não reenvia para quem já recebeu.
+
+Travas de volume (a base tem ~255 docentes e dezenas de editais com prazo aberto):
+
+- No máximo **3 e-mails por docente por execução**. O que passar disso não é marcado
+  como enviado e entra na próxima rodada.
+- `NOTIFY_DOCENTES=0` no `.env`/secrets desliga o envio sem parar a coleta.
+
+Varredura avulsa (backfill) — para o primeiro disparo, ou para editais que já
+existiam quando alguém cadastrou as preferências:
+
+```powershell
+# simulação: mostra quem receberia o quê, não envia nada
+python .\pipeline\main.py --notify-editais --source all
+
+# envio real, respeitando as travas
+python .\pipeline\main.py --notify-editais --source all --apply
+
+# ajustando os limites da execução
+python .\pipeline\main.py --notify-editais --source all --apply --max-por-docente 1 --max-emails 100
+```
+
+Conferência detalhada (par a par, sem enviar): `sandbox/test_new_edital_notification.py`.
+
 ## Tratamento de Erros
 
 - Retry de IA para `429` (respeita o tempo sugerido na mensagem).

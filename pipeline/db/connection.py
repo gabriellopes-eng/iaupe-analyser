@@ -3,23 +3,16 @@ from typing import Optional
 
 import certifi
 from dotenv import load_dotenv
-from pymongo import MongoClient, ASCENDING
-from pymongo.collection import Collection
+from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
 load_dotenv(override=True)
 
-# Todos os editais (de qualquer fonte) vivem numa unica collection fixa. Cada
-# documento se identifica pelo campo `fonte` (facepe/cnpq/finep/capes) - a
-# regra de coleta continua separada por fonte no codigo, so o armazenamento
-# e compartilhado. Nao le de env var de proposito: a antiga MONGODB_COLLECTION
-# ficava com um valor legado (de antes do modelo por fonte existir) que nunca
-# era respeitado na pratica - deixar configuravel de novo reintroduziria essa
-# armadilha silenciosamente.
-EDITAIS_COLLECTION_NAME = "editais"
+# So a conexao com o cluster mora aqui - QUAIS collections existem e seus
+# indices ficam em db/collections.py. Um modulo so cuida de "como falar com o
+# Atlas", o outro de "o que a gente guarda la".
 
 client_cache: Optional[MongoClient] = None
-collection_cache: Optional[Collection] = None
 mongo_disabled = False
 mongo_disable_reason: Optional[str] = None
 
@@ -46,21 +39,26 @@ def mongo_is_requested() -> bool:
     return bool(uri)
 
 
-def coll() -> Collection:
-    """
-    Retorna a collection unica `editais` do MongoDB (com cache) e garante os
-    indices usados pelas consultas (url_pdf unico, data_limit_submissao, fonte).
-    """
-    global client_cache, collection_cache
+def get_db_name() -> str:
+    return (os.getenv("MONGODB_DB") or "iaupe-analyser").strip()
 
-    if collection_cache is not None:
-        return collection_cache
+
+def get_client() -> MongoClient:
+    """
+    Cria (uma unica vez) e devolve o cliente Mongo compartilhado.
+
+    Todas as collections (editais, docentes) usam a MESMA conexao TLS com o
+    Atlas, em vez de cada uma abrir a sua.
+    """
+    global client_cache
 
     if mongo_disabled or not mongo_is_requested():
         raise RuntimeError(mongo_disable_reason or "MongoDB desabilitado ou nao configurado")
 
+    if client_cache is not None:
+        return client_cache
+
     uri = (os.getenv("MONGODB_URI") or "").strip()
-    db_name = (os.getenv("MONGODB_DB") or "iaupe-analyser").strip()
     server_selection_timeout_ms = int(
         (os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or "30000").strip()
     )
@@ -71,29 +69,31 @@ def coll() -> Collection:
         (os.getenv("MONGODB_SOCKET_TIMEOUT_MS") or "30000").strip()
     )
 
-    try:
-        #É aí que o driver abre conexão TLS com Atlas.
-        # cria cliente apenas uma vez e reaproveita nas chamadas seguintes
-        if client_cache is None:
-            client_cache = MongoClient(
-                uri,
-                tlsCAFile=certifi.where(),
-                serverSelectionTimeoutMS=server_selection_timeout_ms,
-                connectTimeoutMS=connect_timeout_ms,
-                socketTimeoutMS=socket_timeout_ms,
-                retryWrites=True,
-            )
+    #É aí que o driver abre conexão TLS com Atlas.
+    # cria cliente apenas uma vez e reaproveita nas chamadas seguintes
+    client_cache = MongoClient(
+        uri,
+        tlsCAFile=certifi.where(),
+        serverSelectionTimeoutMS=server_selection_timeout_ms,
+        connectTimeoutMS=connect_timeout_ms,
+        socketTimeoutMS=socket_timeout_ms,
+        retryWrites=True,
+    )
+    return client_cache
 
-        collection = client_cache[db_name][EDITAIS_COLLECTION_NAME]
-        collection.create_index([("url_pdf", ASCENDING)], unique=True)
-        collection.create_index([("data_limit_submissao", ASCENDING)])
-        collection.create_index([("fonte", ASCENDING)])
-        collection_cache = collection
 
-    except PyMongoError as exc:
-        client_cache = None
-        collection_cache = None
-        disable_mongo(str(exc))
-        raise RuntimeError(mongo_disable_reason or "Falha ao conectar no MongoDB") from exc
+def invalidate_client() -> None:
+    """Zera o cliente cacheado. Usado por db/collections.py apos falha de conexao."""
+    global client_cache
+    client_cache = None
 
-    return collection_cache
+
+def handle_connection_failure(exc: PyMongoError) -> RuntimeError:
+    """
+    Ponto unico de reacao a uma falha de conexao/indice: zera o cliente cacheado
+    e desabilita o Mongo pro resto da execucao (evita ficar tentando reconectar
+    a cada consulta).
+    """
+    invalidate_client()
+    disable_mongo(str(exc))
+    return RuntimeError(mongo_disable_reason or "Falha ao conectar no MongoDB")

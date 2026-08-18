@@ -2,10 +2,16 @@ import json
 import time
 from datetime import datetime, timezone
 
+from db.docentes import list_docentes_com_preferencias
 from db.editais import already_exists, save
 from emails.saved_record_email_notifier import SavedRecordEmailNotifier
+from emails.smtp_config import is_smtp_configured
 from pdf_pipeline.extractor import extract_text_from_pdf_url
 from .date_parser import parse_data_limit_submissao
+from .docente_notification_service import (
+    notificacao_docentes_habilitada,
+    notify_docentes_for_edital,
+)
 from .retry_policy import retry_analyze_text
 from .settings import LIMIT, SLEEP_ALREADY_EXISTS, SLEEP_EMPTY_TEXT, SLEEP_NEW_PROCESS
 from .source_registry import get_source_config
@@ -32,6 +38,18 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         notifier = SavedRecordEmailNotifier()
         email_enabled = notifier.is_enabled()
 
+        # Notificacao por preferencia: o MESMO e-mail e o MESMO notifier acima,
+        # so que enderecado a cada docente cujas areas/segmentos casam com o
+        # edital, em vez do endereco institucional que recebe tudo.
+        match_enabled = is_smtp_configured() and notificacao_docentes_habilitada()
+        docentes_com_preferencia: list[dict] = []
+
+        # Contador da execucao, usado pela trava de volume: numa rodada em que a
+        # fonte publica varios editais de uma vez, ninguem recebe mais que o
+        # limite por pessoa. O que sobra nao e marcado como enviado, entao o
+        # backfill (`main.py --notify-editais`) cobre o restante depois.
+        match_enviados_por_docente: dict[str, int] = {}
+
         found_total = 0
         selected_total = 0
         already_saved_total = 0
@@ -42,6 +60,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         quota_exceeded_total = 0
         error_total = 0
         emails_sent_total = 0
+        match_emails_sent_total = 0
         
         #Aqui eu apliquei o filtro de limite antes de processar os documentos, para evitar gastar recursos de IA e MongoDB com documentos que nao serao processados nessa execucao devido ao limite definido. Assim, priorizo os documentos mais recentes (assumindo que os links sao retornados em ordem do mais recente para o mais antigo) e evito retrabalho desnecessario.
 
@@ -82,7 +101,15 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
             f"Ja salvos ignorados: {already_saved_total} | "
             f"Email habilitado: {'sim' if email_enabled else 'nao'}"
         )
-        print(f"{selected_total} PDFs para processar.\n")
+        # a lista de docentes e carregada UMA vez por execucao (a base tem
+        # centenas de registros) e reaproveitada para todos os editais do lote.
+        if match_enabled:
+            docentes_com_preferencia = list_docentes_com_preferencias()
+
+        print(
+            f"{selected_total} PDFs para processar. "
+            f"Docentes com preferencia cadastrada: {len(docentes_com_preferencia)}\n"
+        )
 
         for i, link in enumerate(links, start=1):
             try:
@@ -172,6 +199,26 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                             error_total += 1
                             print(f"Falha ao enviar email de notificacao: {email_exc}")
 
+                        # Nao precisa passar `already_notified` aqui: so chegamos
+                        # neste ponto quando already_exists() era falso, ou seja, o
+                        # edital nunca esteve com status ok antes e ninguem foi
+                        # avisado dele ainda.
+                        if match_enabled:
+                            enviados = notify_docentes_for_edital(
+                                notifier=notifier,
+                                docentes=docentes_com_preferencia,
+                                source_id=source_id,
+                                source_label=source["label"],
+                                pdf_url=link,
+                                resultado=resultado,
+                                sent_per_docente=match_enviados_por_docente,
+                            )
+                            if enviados:
+                                match_emails_sent_total += len(enviados)
+                                print(
+                                    f"📧 {len(enviados)} docente(s) notificado(s) por area/segmento."
+                                )
+
                 if status == "inserted" and analysis_has_error:
                     print("📭 Email nao enviado: analise com erro (registro salvo para auditoria).")
 
@@ -200,7 +247,8 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
             f"updated={updated_total} | empty_text={empty_text_total} | "
             f"analysis_errors={analysis_error_total} | "
             f"quota_exceeded={quota_exceeded_total} | "
-            f"emails_sent={emails_sent_total} | errors={error_total}"
+            f"emails_sent={emails_sent_total} | "
+            f"emails_docentes={match_emails_sent_total} | errors={error_total}"
         )
 
     except Exception as exc:

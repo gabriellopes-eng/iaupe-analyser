@@ -1,0 +1,41 @@
+/* ---- Secao "Minhas areas de interesse" (embutida na tela inicial, logo
+   apos o EmailGate - mesmo visual de cartao que .email-gate) ---- */
+.preferences {
+  padding: 18px 20px; margin: 0 0 22px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.preferences-title { font-size: 16px; font-weight: 700; color: var(--ink); margin: 0 0 6px; }
+.preferences-lead { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 18px; line-height: 1.5; }
+.preferences-loading { color: var(--muted); font-size: 14px; padding: 12px 0; }
+
+.preferences-group { margin: 18px 0; }
+.preferences-group:first-of-type { margin-top: 4px; }
+.preferences-group h3 { font-size: 13.5px; font-weight: 600; color: var(--ink); margin: 0 0 10px; }
+
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* mesmo padrao visual de .source-chip (stats-toolbar.css) */
+.area-chip, .segmento-chip {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+  font-family: var(--sans); font-size: 13px;
+  padding: 7px 13px; border-radius: 20px; cursor: pointer; transition: all 0.15s;
+  text-align: left;
+}
+.area-chip[aria-pressed="true"], .segmento-chip[aria-pressed="true"] {
+  background: var(--surface-2); color: var(--ink); border-color: var(--blue-bright);
+  font-weight: 600;
+}
+
+.preferences-save {
+  margin-top: 8px; border: none; background: var(--blue-bright); color: #fff;
+  font-family: var(--sans); font-size: 14px; font-weight: 700;
+  padding: 11px 22px; border-radius: 8px; cursor: pointer; transition: opacity 0.15s;
+}
+.preferences-save:hover { opacity: 0.9; }
+.preferences-save:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 640px) {
+  .preferences { padding: 16px; }
+}

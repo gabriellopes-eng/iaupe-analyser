@@ -6,6 +6,7 @@ import { Edital, SourceKey, daysUntil } from "@/domain/edital";
 import { useEditaisState } from "@/hooks/useEditaisState";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import ConnectionNote from "@/components/ConnectionNote";
+import DocentePreferencesForm from "@/components/DocentePreferencesForm";
 import EditalCard from "@/components/EditalCard";
 import EditaisEmptyState from "@/components/EditaisEmptyState";
 import EmailGate from "@/components/EmailGate";
@@ -42,6 +43,7 @@ export default function EditaisView({
     live,
     email,
     toast,
+    showToast,
     handleSetEmail,
     handleClearEmail,
     toggleInterest,
@@ -98,6 +100,8 @@ export default function EditaisView({
       </section>
 
       {live && <EmailGate email={email} onSetEmail={handleSetEmail} onClearEmail={handleClearEmail} />}
+
+      {live && <DocentePreferencesForm email={email} showToast={showToast} />}
 
       <section className="stats" aria-label="Resumo">
         <StatTile label="Editais monitorados" value={totalCount} sub="FACEPE · CNPq · FINEP · CAPES" />
