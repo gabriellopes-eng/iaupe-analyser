@@ -72,8 +72,19 @@ footer.note b { color: var(--ink-soft); font-weight: 600; }
 footer.note code { font-family: var(--mono); font-size: 11.5px; }
 
 .badge-live {
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.5px;
-  padding: 3px 8px; border-radius: 20px; margin-left: 10px;
+  font-family: var(--mono); 
+  font-size: 10.5px; 
+  letter-spacing: 0.5px;
+  padding: 3px 8px; 
+  border-radius: 20px; 
+  margin-left: 10px;
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center;
+  vertical-align: middle;
+  text-align: center;
+
 }
 .badge-live.on { background: var(--green-soft); color: var(--green); }
 .badge-live.off { background: var(--red-soft); color: var(--red); }
+

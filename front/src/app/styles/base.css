@@ -30,6 +30,10 @@ header.top {
 .brand-txt { display: flex; flex-direction: column; }
 .brand-name { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.2px; text-align: center; }
 
+@media (max-width: 640px) {
+  .brand-name { text-align: left; }
+}
+
 /* ---- Intro ---- */
 .intro { padding: 26px 0 6px; max-width: 62ch; }
 .intro h1 {
