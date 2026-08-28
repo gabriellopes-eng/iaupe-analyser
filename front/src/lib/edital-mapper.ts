@@ -9,6 +9,7 @@ export interface EditalDoc {
   fonte?: string;
   data_limit_submissao?: Date | string | null;
   interessados?: string[];
+  created_at?: Date | string | null;
   updated_at?: Date;
   resultado?: {
     titulo?: string;
@@ -82,6 +83,7 @@ export function mapDoc(doc: EditalDoc, email: string | null): Edital | null {
     ref: shortRef(fonte, urlPdf),
     titulo: pickTitulo(doc),
     deadline: toIso(doc.data_limit_submissao),
+    createdAt: toIso(doc.created_at),
     areas: pickAreas(doc),
     interested: email ? interessados.includes(normalizeEmail(email)) : false,
   };

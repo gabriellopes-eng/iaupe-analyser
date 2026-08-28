@@ -53,6 +53,10 @@ export interface Edital {
   ref: string;
   titulo: string;
   deadline: string | null; // ISO 8601 (data limite de submissao)
+  // ISO 8601 (quando a pipeline salvou o edital pela 1a vez). Usado como proxy
+  // de "recencia" na ordenacao da vitrine, ja que a FACEPE nao expoe (e a
+  // pipeline nao persiste) a data de publicacao oficial do edital.
+  createdAt: string | null;
   areas: string[];
   // true se o e-mail atual (identificado no navegador, sem login) esta na lista
   // de interessados deste edital especifico. Nunca inclui a lista de e-mails
