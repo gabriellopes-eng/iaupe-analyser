@@ -3,13 +3,9 @@ requests
 beautifulsoup4
 python-dotenv
 lxml
-<<<<<<< Updated upstream
 pymongo[srv]==4.16.0
 google-genai
 certifi
 pytesseract
 pypdfium2
 openpyxl
-=======
-pymongo
->>>>>>> Stashed changes
