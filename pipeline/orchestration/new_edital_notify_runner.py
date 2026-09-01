@@ -10,6 +10,7 @@ from emails.smtp_config import is_smtp_configured
 from .docente_notification_service import (
     DEFAULT_MAX_EMAILS,
     DEFAULT_MAX_POR_DOCENTE,
+    notificacao_docentes_habilitada,
     notify_docentes_for_edital,
     resolve_source_label,
 )
@@ -67,6 +68,13 @@ def run_new_edital_notifications(
         print("Notificacao desativada: SMTP_USER/SMTP_PASS nao configurados.")
         return
 
+    # Mesmo interruptor de emergencia do fluxo automatico (NOTIFY_DOCENTES=0):
+    # se as notificacoes por area/segmento estao desligadas, o backfill tambem
+    # nao dispara nada.
+    if apply and not notificacao_docentes_habilitada():
+        print("Notificacao desativada: NOTIFY_DOCENTES=0.")
+        return
+
     if not docentes:
         print("Nenhum docente com area/segmento cadastrado - nada a notificar.")
         return
@@ -109,34 +117,38 @@ def _notify_all(
     total_emails = 0
     editais_notificados = 0
 
-    for doc in editais:
-        pdf_url = str(doc.get("url_pdf") or "").strip()
-        if not pdf_url:
-            continue
-        if total_emails >= max_emails:
-            break
+    try:
+        for doc in editais:
+            pdf_url = str(doc.get("url_pdf") or "").strip()
+            if not pdf_url:
+                continue
+            if total_emails >= max_emails:
+                break
 
-        fonte_doc = str(doc.get("fonte") or "").strip().lower()
-        enviados = notify_docentes_for_edital(
-            notifier=notifier,
-            docentes=docentes,
-            source_id=fonte_doc,
-            source_label=resolve_source_label(fonte_doc),
-            pdf_url=pdf_url,
-            resultado=doc.get("resultado") or {},
-            sent_per_docente=sent_per_docente,
-            already_notified=get_match_sent_emails(doc),
-            max_por_docente=max_por_docente,
-            remaining_quota=max_emails - total_emails,
-            dry_run=not apply,
-        )
-
-        if enviados:
-            editais_notificados += 1
-            total_emails += len(enviados)
-            print(
-                f"{'Notificados' if apply else 'Notificaria'} "
-                f"{len(enviados)} docente(s): {pdf_url}"
+            fonte_doc = str(doc.get("fonte") or "").strip().lower()
+            enviados = notify_docentes_for_edital(
+                notifier=notifier,
+                docentes=docentes,
+                source_id=fonte_doc,
+                source_label=resolve_source_label(fonte_doc),
+                pdf_url=pdf_url,
+                resultado=doc.get("resultado") or {},
+                sent_per_docente=sent_per_docente,
+                already_notified=get_match_sent_emails(doc),
+                max_por_docente=max_por_docente,
+                remaining_quota=max_emails - total_emails,
+                dry_run=not apply,
             )
+
+            if enviados:
+                editais_notificados += 1
+                total_emails += len(enviados)
+                print(
+                    f"{'Notificados' if apply else 'Notificaria'} "
+                    f"{len(enviados)} docente(s): {pdf_url}"
+                )
+    finally:
+        # Encerra a conexao SMTP reaproveitada durante o lote.
+        notifier.close()
 
     return {"editais": editais_notificados, "emails": total_emails}

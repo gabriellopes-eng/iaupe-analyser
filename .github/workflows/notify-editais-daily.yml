@@ -1,0 +1,185 @@
+name: Notificacao de Editais (Backfill Diario)
+
+on:
+  schedule:
+    # 15:00 UTC ~= 12:00 BRT Recife/Brasil. Roda DEPOIS da pipeline principal
+    # (13:00 UTC) e dos lembretes (14:00 UTC): pega os docentes que casam com
+    # editais ja salvos e ainda nao foram avisados (ex.: envio que parou no
+    # limite diario do Gmail, ou preferencia cadastrada depois do edital).
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Fonte (facepe, cnpq, finep, capes) ou 'all' para todas"
+        required: false
+        default: "all"
+      max_por_docente:
+        description: "Maximo de e-mails para a MESMA pessoa nesta execucao"
+        required: false
+        default: "3"
+      max_emails:
+        description: "Maximo de e-mails no total nesta execucao (trava anti-rajada)"
+        required: false
+        default: "300"
+      apply:
+        description: "true = envia de verdade | false = so simula"
+        required: false
+        default: "true"
+
+jobs:
+  notify-editais:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate required configuration
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+        run: |
+          REQUIRED_VARS=(
+            MONGODB_URI
+            MONGODB_DB
+            ATLAS_PUBLIC_KEY
+            ATLAS_PRIVATE_KEY
+            ATLAS_PROJECT_ID
+            RECIPIENT_EMAIL
+            SMTP_HOST
+            SMTP_PORT
+            SMTP_USER
+            SMTP_PASS
+            SENDER_EMAIL
+          )
+
+          MISSING=0
+          for VAR_NAME in "${REQUIRED_VARS[@]}"; do
+            if [ -z "${!VAR_NAME}" ]; then
+              echo "Configuracao ausente: $VAR_NAME"
+              MISSING=1
+            fi
+          done
+
+          if [ "$MISSING" -ne 0 ]; then
+            echo "Falha de configuracao: defina os secrets obrigatorios no repositorio."
+            exit 1
+          fi
+
+          echo "Configuracoes obrigatorias encontradas."
+
+      - name: Allowlist runner IP in Atlas
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          RUNNER_IP="$(curl -fsSL https://api.ipify.org)"
+          echo "RUNNER_IP=$RUNNER_IP" >> "$GITHUB_ENV"
+
+          DELETE_AFTER="$(date -u -d '+2 hours' +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Liberando IP do runner no Atlas: $RUNNER_IP"
+
+          HTTP_CODE="$(curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request POST \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" \
+            --header "Content-Type: application/json" \
+            --data "[
+              {
+                \"ipAddress\": \"$RUNNER_IP\",
+                \"comment\": \"GitHub Actions run $GITHUB_RUN_ID\",
+                \"deleteAfterDate\": \"$DELETE_AFTER\"
+              }
+            ]" \
+            --output /tmp/atlas_add_ip_response.json \
+            --write-out '%{http_code}')"
+
+          cat /tmp/atlas_add_ip_response.json
+
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ] && [ "$HTTP_CODE" != "409" ]; then
+            echo "Falha ao adicionar IP no Atlas. HTTP: $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Wait Atlas access list propagation
+        run: |
+          echo "Aguardando propagacao da regra de IP no Atlas..."
+          sleep 60
+
+      - name: Run edital notifications backfill
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          MONGODB_ENABLED: ${{ secrets.MONGODB_ENABLED }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          NOTIFY_DOCENTES: ${{ secrets.NOTIFY_DOCENTES }}
+          NOTIFY_SOURCES: ${{ github.event.inputs.sources || 'all' }}
+          NOTIFY_MAX_POR_DOCENTE: ${{ github.event.inputs.max_por_docente || '3' }}
+          NOTIFY_MAX_EMAILS: ${{ github.event.inputs.max_emails || '300' }}
+          NOTIFY_APPLY: ${{ github.event.inputs.apply || 'true' }}
+        run: |
+          cd pipeline
+
+          APPLY_FLAG=""
+          if [ "$NOTIFY_APPLY" = "true" ] || [ "$NOTIFY_APPLY" = "1" ]; then
+            APPLY_FLAG="--apply"
+          fi
+
+          echo "Backfill de notificacao de editais"
+          echo "Fonte: $NOTIFY_SOURCES | max/docente: $NOTIFY_MAX_POR_DOCENTE | max total: $NOTIFY_MAX_EMAILS | modo: ${APPLY_FLAG:-simulacao}"
+
+          python main.py --notify-editais \
+            --source "$NOTIFY_SOURCES" \
+            --max-por-docente "$NOTIFY_MAX_POR_DOCENTE" \
+            --max-emails "$NOTIFY_MAX_EMAILS" \
+            $APPLY_FLAG
+
+      - name: Remove runner IP from Atlas
+        if: always()
+        env:
+          ATLAS_PUBLIC_KEY: ${{ secrets.ATLAS_PUBLIC_KEY }}
+          ATLAS_PRIVATE_KEY: ${{ secrets.ATLAS_PRIVATE_KEY }}
+          ATLAS_PROJECT_ID: ${{ secrets.ATLAS_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${RUNNER_IP:-}" ]; then
+            echo "RUNNER_IP vazio, nada para remover."
+            exit 0
+          fi
+
+          echo "Removendo IP do runner no Atlas: $RUNNER_IP"
+
+          curl --silent --show-error --digest \
+            --user "$ATLAS_PUBLIC_KEY:$ATLAS_PRIVATE_KEY" \
+            --request DELETE \
+            --url "https://cloud.mongodb.com/api/atlas/v2/groups/$ATLAS_PROJECT_ID/accessList/$RUNNER_IP" \
+            --header "Accept: application/vnd.atlas.2023-01-01+json" || true
