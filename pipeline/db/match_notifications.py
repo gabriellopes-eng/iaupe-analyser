@@ -30,8 +30,15 @@ def find_match_notification_candidates(
     """
     Busca editais validos para notificar docentes por area/segmento.
 
-    Criterio: analise ok e prazo ainda aberto (ou sem prazo identificado - o
-    pipeline_runner tambem so bloqueia quando a data existe E ja passou).
+    Criterio: analise ok E prazo de submissao identificado E ainda no futuro.
+
+    O prazo e obrigatorio de proposito. A base tem muitos documentos acessorios
+    (errata, resultado, lista de espera, enquadramento) que foram analisados e
+    ganharam areas/segmentos, mas nao tem `data_limit_submissao`. Sem esse
+    filtro, o backfill mandaria e-mail para os docentes sobre "Resultado
+    Preliminar" e "ERRATA" - ruido que ninguem pediu. Um edital que vale a pena
+    avisar tem prazo para submeter proposta; sem prazo, e outra coisa.
+
     Sem `fonte`, varre todas as fontes de uma vez (a collection e unica).
 
     Usado pelo backfill (`main.py --notify-editais`). No fluxo normal a pipeline
@@ -41,10 +48,7 @@ def find_match_notification_candidates(
 
     query: dict = {
         "status": "ok",
-        "$or": [
-            {"data_limit_submissao": None},
-            {"data_limit_submissao": {"$gt": reference}},
-        ],
+        "data_limit_submissao": {"$gt": reference},
     }
     if fonte:
         query["fonte"] = fonte
