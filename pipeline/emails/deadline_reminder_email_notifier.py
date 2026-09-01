@@ -29,6 +29,12 @@ class DeadlineReminderEmailNotifier:
     def is_smtp_configured(self) -> bool:
         return is_smtp_configured()
 
+    def close(self) -> None:
+        # Fecha a conexao SMTP reaproveitada pelo lote de lembretes.
+        service = getattr(self._use_case, "emails_service", None) if self._use_case else None
+        if service is not None and hasattr(service, "close"):
+            service.close()
+
     def resolve_edital_titulo(self, saved_json: dict) -> str:
         titulo = str(saved_json.get("titulo") or saved_json.get("titulo_edital") or "").strip()
         if not titulo:
