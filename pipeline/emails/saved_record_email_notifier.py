@@ -34,6 +34,14 @@ class SavedRecordEmailNotifier:
         # O envio so acontece se houver destinatario configurado.
         return bool(self.test_recipient)
 
+    def close(self) -> None:
+        # Fecha a conexao SMTP reaproveitada pelo lote. Chamar ao fim da execucao
+        # (pipeline_runner / backfill); seguro chamar mesmo sem nada aberto.
+        use_case = self._use_case
+        service = getattr(use_case, "emails_service", None) if use_case else None
+        if service is not None and hasattr(service, "close"):
+            service.close()
+
     def resolve_edital_titulo(self, saved_json: dict) -> str:
         titulo = str(saved_json.get("titulo") or saved_json.get("titulo_edital") or "").strip()
         if not titulo:

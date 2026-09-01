@@ -254,3 +254,9 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
     except Exception as exc:
         print(f"❌ Falha geral na orquestracao da pipeline: {exc}")
         raise
+
+    finally:
+        # Encerra a conexao SMTP reaproveitada durante o lote de notificacoes.
+        notifier = locals().get("notifier")
+        if notifier is not None:
+            notifier.close()

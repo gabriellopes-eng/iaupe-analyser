@@ -58,6 +58,16 @@ def run_deadline_reminders(
         print("Lembretes desativados: SMTP_USER/SMTP_PASS nao configurados.")
         return
 
+    try:
+        sent_count = _send_reminders(docs, notifier, source, source_id, steps, today_start)
+    finally:
+        # Encerra a conexao SMTP reaproveitada durante o lote.
+        notifier.close()
+
+    print(f"Total de editais notificados: {sent_count}")
+
+
+def _send_reminders(docs, notifier, source, source_id, steps, today_start) -> int:
     sent_count = 0
     for doc in docs:
         deadline = doc.get("data_limit_submissao")
@@ -122,4 +132,4 @@ def run_deadline_reminders(
         except Exception as exc:
             print(f"Falha no lembrete D-{days_left} para {pdf_url}: {exc}")
 
-    print(f"Total de editais notificados: {sent_count}")
+    return sent_count
