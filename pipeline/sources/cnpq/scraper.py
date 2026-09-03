@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import requests
 
 from .client import fetch_html, fetch_html_or_empty
@@ -60,3 +62,16 @@ def collect_links(url_lista: str = BASE_URL) -> list[str]:
         return detail_pages
 
     return links
+
+
+def collect_calls(url_lista: str = BASE_URL) -> list[tuple[str, datetime | None]]:
+    """
+    Coleta as chamadas abertas do CNPq como pares (url_pdf, data_publicacao).
+
+    O CNPq NAO publica data de publicacao da chamada - o que existe e a data de
+    inicio de inscricao, e ela fica em outra pagina (o card do indice), sem
+    ligacao direta com cada PDF extraido das paginas de detalhe. Entao a data
+    aqui e sempre None e o front cai no `created_at` para ordenar as chamadas do
+    CNPq.
+    """
+    return [(url, None) for url in collect_links(url_lista)]

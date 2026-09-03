@@ -10,8 +10,15 @@ def normalize_text(value: str) -> str:
 
 
 def clean_href(href: str) -> str:
-    """Remove fragmentos e corrige URLs de PDF com barra final indevida."""
+    """
+    Normaliza URLs de PDF da CAPES para uma forma canonica.
+
+    - remove o fragmento (`#...`);
+    - trunca tudo que vier depois de `.pdf`. O gov.br (Plone) serve o MESMO
+      arquivo em duas formas: a URL "limpa" (`...edital.pdf`) e a URL de download
+      (`...edital.pdf/@@display-file/file` ou `.../@@download/file`, e ate uma
+      barra final solta). As duas apontam para o mesmo PDF, mas cada uma virava
+      um edital separado no banco. Deixar so `...edital.pdf` evita a duplicata.
+    """
     cleaned = (href or "").split("#", 1)[0].strip()
-    if cleaned.endswith("/") and cleaned.lower().endswith(".pdf/"):
-        cleaned = cleaned[:-1]
-    return cleaned
+    return re.sub(r"(?i)(\.pdf)/.*$", r"\1", cleaned)

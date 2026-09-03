@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from db.match_notifications import mark_match_email_sent
+from db.match_notifications import mark_match_emails_sent
 from emails.saved_record_email_notifier import SavedRecordEmailNotifier
 
 from .docente_match import DocenteMatch, match_docentes
@@ -13,10 +13,11 @@ from .source_registry import SOURCE_REGISTRY
 # um edital por vez, assim que e salvo) quanto pelo backfill avulso
 # (new_edital_notify_runner.py, varios editais de uma vez).
 
-# Travas de volume. Sem elas, notificar todo mundo de uma vez mandaria um
-# e-mail para CADA par (edital com prazo aberto x docente que casa) - na base
-# de agosto/2026 isso daria ~12 mil mensagens, ate 56 de uma vez para a mesma
-# pessoa. Isso parece spam para quem recebe e derruba a reputacao da conta SMTP.
+# Travas de volume. O envio e feito em copia oculta (um e-mail por edital, com
+# todos os docentes que casam em BCC), entao a contagem de MENSAGENS e baixa; o
+# que estas travas limitam e a quantidade de DESTINATARIOS por execucao. Sem
+# elas, uma varredura de todos os editais com prazo aberto colocaria a mesma
+# pessoa em dezenas de listas de BCC - parece spam e queima a reputacao da conta.
 DEFAULT_MAX_POR_DOCENTE = 3
 DEFAULT_MAX_EMAILS = 300
 
@@ -86,33 +87,33 @@ def send_to_recipients(
     resultado: dict,
 ) -> list[str]:
     """
-    Envia e marca, um destinatario por vez. Devolve os e-mails que sairam.
+    Envia UM e-mail com todos os destinatarios em copia oculta e marca no banco
+    quem recebeu. Devolve a lista de e-mails que sairam.
 
     Reaproveita o e-mail de edital novo que ja existe (SavedRecordEmailNotifier):
-    o docente recebe exatamente a mesma mensagem que o endereco institucional,
-    so que enderecada a ele - um layout so para manter.
-
-    A marcacao acontece logo apos cada envio, e nao em lote no fim: se a execucao
-    cair no meio de uma lista grande, quem ja recebeu nao recebe de novo. Falha
-    em um destinatario nao derruba a lista - so pula para o proximo.
+    o docente recebe exatamente a mesma mensagem que o endereco institucional.
+    O envio e fatiado em blocos pelo SmtpEmailService; um bloco que falha e
+    pulado (seus docentes nao entram no retorno e nao sao marcados, entao
+    reentram numa proxima execucao).
     """
-    enviados: list[str] = []
+    emails = [match.email for match in recipients]
 
-    for match in recipients:
-        try:
-            notifier.notify_saved_record(
-                recipient_email=match.email,
-                source_label=source_label,
-                source_id=source_id,
-                pdf_url=pdf_url,
-                saved_json=resultado,
-            )
-            mark_match_email_sent(url_pdf=pdf_url, email=match.email)
-            enviados.append(match.email)
-        except Exception as exc:
-            print(f"Falha ao notificar {match.email} sobre {pdf_url}: {exc}")
+    try:
+        delivered = notifier.notify_saved_record_bcc(
+            recipients=emails,
+            source_label=source_label,
+            source_id=source_id,
+            pdf_url=pdf_url,
+            saved_json=resultado,
+        )
+    except Exception as exc:
+        print(f"Falha ao notificar docentes sobre {pdf_url}: {exc}")
+        return []
 
-    return enviados
+    if delivered:
+        mark_match_emails_sent(url_pdf=pdf_url, emails=delivered)
+
+    return delivered
 
 
 def notify_docentes_for_edital(

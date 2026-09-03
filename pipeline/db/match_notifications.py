@@ -71,6 +71,46 @@ def find_match_notification_candidates(
         return []
 
 
+def mark_match_emails_sent(
+    *,
+    url_pdf: str,
+    emails: list[str],
+    sent_at: Optional[datetime] = None,
+) -> int:
+    """
+    Marca VARIOS destinatarios como avisados sobre este edital, numa unica
+    operacao.
+
+    Usado pelo envio em copia oculta: um bloco de BCC entrega para dezenas de
+    docentes de uma vez, entao a marcacao tambem e feita em lote logo depois.
+    `$addToSet` com `$each` e idempotente - rodar de novo nao duplica nada.
+
+    Devolve quantos e-mails (distintos, normalizados) foram enviados na operacao.
+    """
+    normalized = sorted({e.strip().lower() for e in (emails or []) if e and e.strip()})
+    if not normalized:
+        return 0
+
+    when = sent_at or datetime.now(timezone.utc)
+    try:
+        coll().update_one(
+            {"url_pdf": url_pdf},
+            {
+                "$addToSet": {
+                    f"{MATCH_NOTIFICATION_FIELD}.sent_emails": {"$each": normalized}
+                },
+                "$set": {
+                    f"{MATCH_NOTIFICATION_FIELD}.last_sent_at": when,
+                    "updated_at": when,
+                },
+            },
+        )
+        return len(normalized)
+    except (RuntimeError, PyMongoError) as exc:
+        print(f"[MongoDB] Falha ao marcar notificacoes por area (lote): {exc}")
+        return 0
+
+
 def mark_match_email_sent(
     *,
     url_pdf: str,

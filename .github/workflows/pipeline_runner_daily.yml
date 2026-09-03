@@ -254,6 +254,15 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          # Interruptor de emergencia da notificacao por area/segmento. Com o
+          # workflow de backfill removido, este passa a ser o unico disparo
+          # automatico de e-mail para docentes, entao o kill-switch precisa
+          # chegar aqui (NOTIFY_DOCENTES=0 nos secrets para desligar).
+          NOTIFY_DOCENTES: ${{ secrets.NOTIFY_DOCENTES }}
+          # Envio dos docentes em copia oculta: tamanho do bloco e pausa entre
+          # mensagens (defaults no codigo; secrets sobrescrevem se precisar).
+          SMTP_BCC_BATCH_SIZE: ${{ secrets.SMTP_BCC_BATCH_SIZE }}
+          SMTP_SEND_DELAY_SECONDS: ${{ secrets.SMTP_SEND_DELAY_SECONDS }}
           PIPELINE_SOURCES: ${{ github.event.inputs.sources || 'finep,facepe,cnpq,capes' }}
           PIPELINE_LIMIT_PER_SOURCE: ${{ github.event.inputs.limit_per_source || '3' }}
           QUOTA_CIRCUIT_BREAKER_ENABLED: ${{ github.event.inputs.quota_circuit_breaker_enabled || 'true' }}
