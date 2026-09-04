@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Montserrat } from "next/font/google";
 
 import {
   EditalDetail,
@@ -6,7 +7,8 @@ import {
   deadlineUrgency,
   formatPtBrDate,
 } from "@/domain/edital";
-import { ClockIcon } from "@/components/icons";
+
+const montserrat = Montserrat({ subsets: ["latin"], weight: ["400", "600", "700"] });
 
 interface EditalDetailViewProps {
   edital: EditalDetail;
@@ -48,57 +50,68 @@ function BadgesOrEmpty({ items }: { items: string[] }) {
   );
 }
 
-// Pagina de detalhamento do edital. Segue a mesma linguagem visual do resto do
-// site (tokens.css, cards.css): um unico cartao, sem recriar o cabecalho de
-// marca do email de notificacao - o header institucional ja vem do layout
-// global (app/layout.tsx). O conteudo (campos extraidos pela pipeline) e o
-// mesmo que o email mostra (ver pipeline/emails/saved_record_email_notifier.py).
+// Pagina de detalhamento do edital. Mantem a paleta e a tipografia do e-mail de
+// notificacao (cores da UPE/IIT, fonte Montserrat, rotulos em versalete azul),
+// mas SEM recriar o cabecalho de marca do e-mail (logos + nome da plataforma):
+// esse cabecalho ja vem do layout global do site (app/layout.tsx), e repeti-lo
+// aqui dava a impressao de "uma pagina dentro de outra". O conteudo e o mesmo
+// que o e-mail comunica (ver pipeline/emails/saved_record_email_notifier.py).
 export default function EditalDetailView({ edital }: EditalDetailViewProps) {
   const days = daysUntil(edital.deadline);
   const urgency = deadlineUrgency(days);
+  const diasLabel =
+    days === null
+      ? null
+      : days < 0
+        ? "Prazo encerrado"
+        : days === 0
+          ? "Último dia"
+          : `${days} ${days === 1 ? "dia restante" : "dias restantes"}`;
 
   return (
-    <div className="detail-page">
+    <div className={`detail-page ${montserrat.className}`}>
       <div className="detail-outer">
         <Link href="/" className="detail-back">
           ← Voltar
         </Link>
 
         <article className="detail-card">
-          <header className="detail-head">
-            <div className="detail-head-top">
-              <span className="src-chip">
-                <span className="src-dot" style={{ background: edital.color }} />
-                {edital.sourceLabel}
-              </span>
-              <span className="detail-ref">Ref: {edital.ref}</span>
-            </div>
-            <h1 className="detail-title">{edital.titulo}</h1>
-            <p className="detail-org">{edital.orgao}</p>
-          </header>
+          <div className="detail-redbar" />
 
-          <div className="detail-meta">
-            <span className={`deadline ${urgency}`}>
-              <ClockIcon />
-              {formatPtBrDate(edital.deadline)}
-              {days !== null && (
-                <>
-                  {" · "}
-                  <span className="days">{days}d</span>
-                </>
-              )}
+          <div className="detail-hero">
+            <h1 className="detail-title">{edital.titulo}</h1>
+          </div>
+
+          <div className="detail-orgbar">
+            <span>
+              <span className="detail-orgbar-label">Órgão: </span>
+              <span className="detail-orgbar-value">{edital.orgao}</span>
             </span>
-            <a
-              className="detail-pdf-link"
-              href={edital.urlPdf}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              → Acessar edital em PDF
-            </a>
+            <span className="detail-ref-badge">Ref: {edital.ref}</span>
           </div>
 
           <div className="detail-body">
+            <div className="detail-top-grid">
+              <div className="detail-top-cell">
+                <p className="detail-field-label">Prazo final de submissão</p>
+                <p className="detail-deadline-value">{formatPtBrDate(edital.deadline)}</p>
+                {diasLabel && (
+                  <span className={`detail-deadline-pill ${urgency}`}>{diasLabel}</span>
+                )}
+              </div>
+              <div className="detail-top-cell">
+                <p className="detail-field-label">Documento oficial</p>
+                <a
+                  className="detail-pdf-link"
+                  href={edital.urlPdf}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  → Acessar edital em PDF
+                </a>
+              </div>
+            </div>
+
             <DetailField label="Público-alvo">
               <p className="detail-text">{edital.publicoAlvo || "Não informado."}</p>
             </DetailField>
@@ -134,11 +147,24 @@ export default function EditalDetailView({ edital }: EditalDetailViewProps) {
             </div>
           </div>
 
-          <p className="detail-note">
-            Estas informações foram extraídas automaticamente do documento oficial pela
-            plataforma de monitoramento de editais. Consulte sempre o edital em PDF para os
-            termos completos.
-          </p>
+          <div className="detail-cta">
+            <a
+              className="detail-cta-btn"
+              href={edital.urlPdf}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Acessar Edital Completo
+            </a>
+          </div>
+
+          <div className="detail-footnote">
+            <p>
+              Estas informações foram extraídas automaticamente do documento oficial pela
+              plataforma de monitoramento de editais. Consulte sempre o edital em PDF para os
+              termos completos.
+            </p>
+          </div>
         </article>
       </div>
     </div>
