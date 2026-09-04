@@ -35,7 +35,7 @@ Fluxo principal:
 
 ```text
 Fonte selecionada (--source)
--> collect_links (scraper da fonte)
+-> collect_calls (scraper da fonte: url + data de publicação)
 -> extractor (texto do PDF/HTML)
 -> analyzer (JSON estruturado via Gemini)
 -> save (MongoDB na collection da fonte)
@@ -138,11 +138,13 @@ A regra principal é simples:
 Trecho central em `pipeline/orchestration/pipeline_runner.py`:
 
 ```python
-links = source["collect_links"](source["base_url"])
+calls = source["collect_calls"](source["base_url"])          # [(url_pdf, data_publicacao), ...]
+links = [url for url, _ in calls]
+data_publicacao_por_url = dict(calls)
 
 pending_links: list[str] = []
 for link in links:
-    if already_exists(link, collection_name=source["mongo_collection"]):
+    if already_exists(link):                                  # já salvo com status=ok
         already_saved_total += 1
         continue
 
@@ -157,16 +159,21 @@ Em resumo: a source organiza os editais por prioridade/recência, e o runner fil
 
 Responsabilidades:
 
-- `collect_links()`: busca os editais da fonte e devolve os links na ordem esperada.
+- `collect_calls()`: busca os editais da fonte e devolve pares `(url_pdf, data_publicacao)` na ordem esperada. `collect_links()` continua existindo e devolve só as URLs.
 - `already_exists()`: consulta o MongoDB para verificar se o PDF já foi processado com `status=ok`.
-- `pipeline_runner.py`: aplica o limite da execução e define quais links serão processados.
+- `pipeline_runner.py`: aplica o limite da execução, define quais links serão processados e repassa a `data_publicacao` de cada um para o `save()`.
+
+A `data_publicacao` é gravada no documento do edital e usada pelo front para
+ordenar a vitrine na mesma ordem do site oficial (mais recente primeiro). CNPq
+não expõe essa data (vem `None`); nesse caso, e para editais salvos antes do
+campo existir, o front cai no `created_at`.
 
 Regras por fonte:
 
-- FACEPE: coleta somente editais principais do ano-alvo, remove documentos acessórios e ordena por data de publicação mais recente.
-- CNPq: coleta chamadas abertas, lê a data inicial de inscrição quando disponível e prioriza chamadas com inscrição mais recente.
-- FINEP: usa a API da FINEP com `sort=dataDePublicacao:desc`, filtra chamadas abertas e limita as 8 chamadas mais recentes.
-- CAPES: segue a ordem oficial da seção "Editais Abertos", filtra apenas editais principais do ano-alvo e ignora documentos auxiliares.
+- FACEPE: coleta somente editais principais do ano-alvo, remove documentos acessórios e ordena por data de publicação mais recente. Data de publicação: extraída de textos como "28 de maio de 2026".
+- CNPq: coleta chamadas abertas, lê a data inicial de inscrição quando disponível e prioriza chamadas com inscrição mais recente. Não expõe data de publicação (`data_publicacao` fica `None`).
+- FINEP: usa a API da FINEP com `sort=dataDePublicacao:desc`, filtra chamadas abertas e limita as 8 chamadas mais recentes. Data de publicação: campo `dateCreated` da API.
+- CAPES: segue a ordem oficial da seção "Editais Abertos", filtra apenas editais principais do ano-alvo e ignora documentos auxiliares. Data de publicação: primeira coluna da tabela de editais (dd/mm/AAAA). URLs de PDF são normalizadas (sem o sufixo `/@@display-file/file` do Plone) para não duplicar o mesmo edital.
 
 Variáveis opcionais para testes ou execuções controladas:
 
@@ -239,8 +246,12 @@ Observações:
   documento tem um campo `fonte` (`facepe`/`cnpq`/`finep`/`capes`) para identificar a origem.
 - Para desativar a persistência mesmo com URI definida, use `MONGODB_ENABLED=0`.
 - O remetente do e-mail é definido por `SENDER_EMAIL`.
-- `RECIPIENT_EMAIL` aceita um ou vários e-mails separados por vírgula.
-- Quando houver vários destinatários, o sistema envia um único e-mail com todos em cópia (Cc).
+- `RECIPIENT_EMAIL` aceita um ou vários e-mails separados por vírgula. Quando há
+  vários, o e-mail institucional vai com todos em cópia (Cc). A notificação dos
+  docentes é separada e vai em cópia **oculta** (BCC) — ver "Notificação de
+  Editais Novos por Área/Segmento".
+- `SMTP_BCC_BATCH_SIZE` (padrão 90) e `SMTP_SEND_DELAY_SECONDS` (padrão 1.0)
+  controlam o envio em BCC: destinatários por mensagem e pausa entre mensagens.
 
 ## Execução da Pipeline
 
@@ -348,19 +359,30 @@ Como funciona a notificação por preferência:
 3. A comparação é normalizada (sem espaços, sem diferença de caixa), então valores
    legados da planilha como `"Tecnologia da informação( TI)"` casam com o
    `"Tecnologia da informação(TI)"` do catálogo atual.
-4. Envia um e-mail **individual** por docente (nunca em cópia/Cc) — o mesmo layout
-   que já vai para o endereço institucional — e marca o envio em
-   `match_notification.sent_emails`, no próprio documento do edital: reprocessar a
-   fonte não reenvia para quem já recebeu.
+4. Envia **um único e-mail** com todos os docentes que casam em **cópia oculta
+   (BCC)** — mesmo layout que vai para o endereço institucional. Ninguém vê o
+   endereço de ninguém (o header `Bcc` nunca vai na mensagem, só a lista do
+   envelope). O Google Workspace aceita ~100 destinatários por mensagem, então a
+   lista é fatiada em blocos de `SMTP_BCC_BATCH_SIZE` (padrão 90). Cada docente
+   que recebeu é marcado em `match_notification.sent_emails`, no próprio documento
+   do edital: reprocessar a fonte não reenvia para quem já recebeu; um bloco que
+   falha não é marcado e reentra na próxima execução manual.
 
-Travas de volume (a base tem ~255 docentes e dezenas de editais com prazo aberto):
+Travas de volume (a base tem ~260 docentes e dezenas de editais com prazo aberto):
 
-- No máximo **3 e-mails por docente por execução**. O que passar disso não é marcado
-  como enviado e entra na próxima rodada.
+- No máximo **3 e-mails por docente por execução** e um teto total por execução
+  (`--max-emails`, padrão 300). Limitam quantos **destinatários** entram por
+  rodada — protegem o teto de ~2.000/dia do Workspace. O que passar disso não é
+  marcado e entra na próxima rodada.
 - `NOTIFY_DOCENTES=0` no `.env`/secrets desliga o envio sem parar a coleta.
 
-Varredura avulsa (backfill) — para o primeiro disparo, ou para editais que já
-existiam quando alguém cadastrou as preferências:
+Varredura avulsa (`main.py --notify-editais`) — reconcilia "editais salvos" com
+"docentes notificados" sempre que os dois divergem: primeiro disparo depois de
+popular a base de preferências, docente que cadastra preferências depois de o
+edital já existir, drenar um acúmulo de editais (a trava de 3/docente por
+execução é por rodada, então um lote grande leva algumas rodadas), ou reprocessar
+após falha de SMTP. Roda no dia a dia pelo workflow `notify-editais-daily.yml`
+(agendado, logo após a pipeline principal) e também sob demanda:
 
 ```powershell
 # simulação: mostra quem receberia o quê, não envia nada
@@ -390,10 +412,10 @@ Conferência detalhada (par a par, sem enviar): `sandbox/test_new_edital_notific
    - `SOURCE_KEY`
    - `SOURCE_LABEL`
    - `BASE_URL`
-   - `MONGO_COLLECTION`
-   - `collect_links(url_lista: str) -> list[str]`
-3. Expor a API pública em `pipeline/sources/nova_fonte/__init__.py`.
-4. Registrar a fonte em `pipeline/orchestration/source_registry.py`.
+   - `collect_calls(url_lista: str) -> list[tuple[str, datetime | None]]` — pares `(url_pdf, data_publicacao)` na ordem da fonte. Use `None` na data quando a fonte não publicar essa informação.
+   - `collect_links(url_lista: str) -> list[str]` — normalmente só `[url for url, _ in collect_calls(...)]`.
+3. Expor a API pública em `pipeline/sources/nova_fonte/__init__.py` (incluindo `collect_calls`).
+4. Registrar a fonte em `pipeline/orchestration/source_registry.py` com as chaves `collect_links` e `collect_calls`.
 
 ## Sandbox (Área de Teste de Desenvolvimento)
 

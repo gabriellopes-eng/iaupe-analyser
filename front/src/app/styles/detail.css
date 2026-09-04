@@ -1,13 +1,14 @@
 /* ---- Pagina de detalhamento do edital ----
-   Estrutura e a maior parte da paleta identicas ao email de notificacao (ver
+   Mantem a paleta e a tipografia do e-mail de notificacao (ver
    pipeline/emails/saved_record_email_notifier.py e email_branding.py):
-     #db261d       -> vermelho da UPE (barra de destaque, prazo)
-     #164072/#2160ab -> azul do IIT (gradiente do cabecalho, botoes, links)
-   Excecao: o fundo da pagina e da faixa dos logos usa var(--ground) - a MESMA
-   cor de fundo do resto do site (tokens.css) - em vez do tom especifico do
-   email, pra nao destacar como um retangulo de cor estranho ao restante da UI. */
-.detail-page { background: var(--ground); padding: 32px 16px 56px; color: #1a1a2e; }
-.detail-outer { max-width: 620px; margin: 0 auto; }
+     #db261d          -> vermelho da UPE (barra de destaque, prazo)
+     #164072 / #2160ab -> azul do IIT (gradiente do cabecalho, botoes, rotulos)
+     Montserrat        -> mesma fonte do e-mail
+   O que NAO se repete aqui: as logos e o nome "Plataforma de Monitoramento de
+   Editais", ja presentes no cabecalho global do site (app/layout.tsx). O fundo
+   da pagina usa var(--ground), a mesma cor do resto da interface. */
+.detail-page { background: var(--ground); padding: 28px 20px 72px; color: #1a1a2e; }
+.detail-outer { max-width: 760px; margin: 0 auto; }
 
 .detail-back {
   display: inline-block; margin-bottom: 16px;
@@ -15,25 +16,19 @@
 }
 .detail-back:hover { text-decoration: underline; }
 
-.detail-email-card {
-  background: #ffffff; border-radius: 8px; overflow: hidden;
-  box-shadow: 0 1px 2px rgba(20, 40, 80, 0.08), 0 8px 24px rgba(20, 40, 80, 0.08);
+.detail-card {
+  background: #ffffff; border-radius: 14px; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(20, 40, 80, 0.08), 0 12px 32px rgba(20, 40, 80, 0.10);
 }
 
-.detail-logos {
-  background: #ffffff; padding: 18px 36px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.detail-logos img { height: 42px; width: auto; display: block; }
-
+/* faixa vermelha no topo do cartao (acento de marca, sem as logos) */
 .detail-redbar { background: #db261d; height: 5px; }
 
-.detail-hero { background: linear-gradient(135deg, #164072 0%, #2160ab 100%); padding: 28px 36px 24px; }
-.detail-eyebrow {
-  margin: 0 0 2px; font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
-  color: #a8c4e8; font-weight: 600;
+.detail-hero {
+  background: linear-gradient(135deg, #164072 0%, #2160ab 100%);
+  padding: 30px 36px 26px;
 }
-.detail-title { margin: 0; font-size: 22px; font-weight: 600; color: #ffffff; line-height: 1.35; }
+.detail-title { margin: 0; font-size: 23px; font-weight: 700; color: #ffffff; line-height: 1.35; letter-spacing: -0.2px; }
 
 .detail-orgbar {
   background: #2160ab; padding: 14px 36px; border-bottom: 2px solid #db261d;
@@ -43,15 +38,23 @@
 .detail-orgbar-value { font-size: 14px; font-weight: 700; color: #ffffff; }
 .detail-ref-badge {
   font-family: "Courier New", monospace; font-size: 11px; color: #a8c4e8;
-  background: #164072; padding: 4px 10px; border-radius: 3px;
+  background: #164072; padding: 4px 10px; border-radius: 4px;
 }
 
 .detail-body { background: #ffffff; }
 .detail-top-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #dce8f5; }
 .detail-top-cell { padding: 24px 36px 20px; }
 .detail-top-cell:first-child { border-right: 1px solid #dce8f5; }
-.detail-deadline-value { margin: 0; font-size: 22px; font-weight: 600; color: #db261d; }
-.detail-pdf-link { font-size: 14px; font-weight: 700; color: #2160ab; text-decoration: none; }
+.detail-deadline-value { margin: 0; font-size: 22px; font-weight: 700; color: #db261d; }
+.detail-deadline-pill {
+  display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+}
+.detail-deadline-pill.urgent { background: #fbe4e1; color: #c0392b; }
+.detail-deadline-pill.soon { background: #f8ecd6; color: #b3760a; }
+.detail-deadline-pill.calm { background: #dcf0e6; color: #1c7a53; }
+.detail-deadline-pill.none { background: #eef2f7; color: #6b7280; }
+.detail-pdf-link { display: inline-block; margin-top: 2px; font-size: 14px; font-weight: 700; color: #2160ab; text-decoration: none; }
 .detail-pdf-link:hover { text-decoration: underline; }
 
 .detail-field { padding: 20px 36px; border-bottom: 1px solid #eaf1fb; }
@@ -64,9 +67,11 @@
 .detail-empty { margin: 0; font-size: 14px; color: #6b7280; }
 .detail-list { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.75; color: #2d3748; }
 .detail-list li { margin-bottom: 8px; }
-.detail-badges { display: flex; flex-wrap: wrap; gap: 8px 0; }
+.detail-list li:last-child { margin-bottom: 0; }
+
+.detail-badges { display: flex; flex-wrap: wrap; gap: 8px; }
 .detail-badge {
-  display: inline-block; margin: 0 8px 8px 0; padding: 6px 10px;
+  display: inline-block; padding: 6px 12px;
   background: #e0f2fe; color: #075985; border-radius: 999px; font-size: 13px;
 }
 
@@ -78,16 +83,16 @@
 .detail-cta-btn {
   display: inline-block; background: #2160ab; color: #ffffff;
   font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-  text-decoration: none; padding: 13px 40px; border-radius: 3px;
+  text-decoration: none; padding: 13px 40px; border-radius: 6px; transition: background 0.15s;
 }
 .detail-cta-btn:hover { background: #184b80; }
 
-.detail-footnote { background: #164072; padding: 20px 36px; text-align: center; }
+.detail-footnote { background: #164072; padding: 18px 36px; text-align: center; }
 .detail-footnote p { margin: 0; font-size: 11px; color: #7a9cc8; line-height: 1.7; }
 
 @media (max-width: 640px) {
-  .detail-logos, .detail-hero, .detail-orgbar, .detail-top-cell, .detail-field, .detail-cta, .detail-footnote {
-    padding-left: 20px; padding-right: 20px;
+  .detail-hero, .detail-orgbar, .detail-top-cell, .detail-field, .detail-cta, .detail-footnote {
+    padding-left: 22px; padding-right: 22px;
   }
   .detail-top-grid, .detail-two-col { grid-template-columns: 1fr; }
   .detail-top-cell:first-child, .detail-two-col .detail-field:first-child {

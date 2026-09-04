@@ -1,3 +1,4 @@
+from datetime import datetime
 from urllib.parse import urlparse
 
 import requests
@@ -47,9 +48,16 @@ def collect_documents(url_lista: str = BASE_URL) -> list[CapesDocument]:
     return documents
 
 
+def collect_calls(url_lista: str = BASE_URL) -> list[tuple[str, datetime | None]]:
+    """
+    Coleta os editais principais da CAPES como pares (url_pdf, data_publicacao).
+
+    A data vem da primeira coluna da tabela de editais de cada subpagina de
+    programa (formato dd/mm/YYYY).
+    """
+    return [(document.pdf_url, document.publication_date) for document in collect_documents(url_lista)]
+
+
 def collect_links(url_lista: str = BASE_URL) -> list[str]:
-    """
-    O CAPES esta aqui
-    Coleta URLs dos editais principais mais recentes da CAPES.
-    """
-    return [document.pdf_url for document in collect_documents(url_lista)]
+    """So as URLs dos editais principais da CAPES (sem a data)."""
+    return [url for url, _ in collect_calls(url_lista)]

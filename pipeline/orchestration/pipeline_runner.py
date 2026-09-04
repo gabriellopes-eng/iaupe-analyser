@@ -64,7 +64,13 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
         
         #Aqui eu apliquei o filtro de limite antes de processar os documentos, para evitar gastar recursos de IA e MongoDB com documentos que nao serao processados nessa execucao devido ao limite definido. Assim, priorizo os documentos mais recentes (assumindo que os links sao retornados em ordem do mais recente para o mais antigo) e evito retrabalho desnecessario.
 
-        links = source["collect_links"](source["base_url"])
+        # collect_calls devolve (url_pdf, data_publicacao). A data serve para
+        # ordenar a vitrine do front pela publicacao real da fonte, em vez do
+        # created_at (que depende de quando a pipeline alcancou o edital). CNPq
+        # nao expoe data de publicacao, entao vem None.
+        calls = source["collect_calls"](source["base_url"])
+        links = [url for url, _ in calls]
+        data_publicacao_por_url: dict[str, datetime | None] = dict(calls)
         found_total = len(links)
         if not links:
             print(f"Nenhum PDF encontrado para a fonte {source['label']}.")
@@ -134,6 +140,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                         fonte=source_id,
                         texto_preview="",
                         data_limit_submissao=None,
+                        data_publicacao=data_publicacao_por_url.get(link),
                     )
                     if status != "disabled":
                         print(f"💾 MongoDB: {status}")
@@ -160,6 +167,7 @@ def run_pipeline(source_key: str | None = None, limit: int | None = LIMIT) -> No
                     fonte=source_id,
                     texto_preview=texto,
                     data_limit_submissao=data_limit_submissao,
+                    data_publicacao=data_publicacao_por_url.get(link),
                 )
 
                 if status != "disabled":

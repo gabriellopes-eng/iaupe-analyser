@@ -6,6 +6,7 @@ from html import escape
 from dotenv import load_dotenv
 
 from .date_format import format_ptbr_date
+from .email import Email
 from .email_branding import LOGO_HEADER_HTML
 from .smtp_email_service import SmtpEmailService
 from .send_email_use_case import SendEmailUseCase
@@ -19,8 +20,9 @@ class SavedRecordEmailNotifier:
     # E o MESMO e-mail para dois publicos, so muda o destinatario:
     # - sem `recipient_email`, vai para o endereco institucional (RECIPIENT_EMAIL),
     #   que acompanha todos os editais;
-    # - com `recipient_email`, vai para um docente especifico cujas areas/segmentos
-    #   casam com o edital (ver orchestration/new_edital_notify_runner.py).
+    # - com `notify_saved_record_bcc`, vai para todos os docentes cujas
+    #   areas/segmentos casam com o edital, em copia oculta (ver
+    #   orchestration/docente_notification_service.py).
     # Um layout so para os dois casos: quem le o e-mail ve exatamente o mesmo
     # conteudo, e so existe um HTML para manter.
 
@@ -52,6 +54,63 @@ class SavedRecordEmailNotifier:
             return f"{titulo[:117].rstrip()}..."
         return titulo
 
+    def _ensure_use_case(self) -> SendEmailUseCase:
+        # O caso de uso e criado sob demanda, apenas quando realmente vamos enviar,
+        # e reaproveitado (a conexao SMTP fica viva ate `close()`).
+        if self._use_case is None:
+            self._use_case = SendEmailUseCase(SmtpEmailService())
+        return self._use_case
+
+    def build_subject(self, source_label: str, saved_json: dict) -> str:
+        # O assunto resume o evento principal: registro salvo e origem do dado.
+        return f"[{source_label}] {self.resolve_edital_titulo(saved_json)}"
+
+    def notify_saved_record_bcc(
+        self,
+        *,
+        source_label: str,
+        source_id: str,
+        pdf_url: str,
+        saved_json: dict,
+        recipients: list[str],
+    ) -> list[str]:
+        """
+        Envia o e-mail do edital para varios docentes em COPIA OCULTA.
+
+        Monta o HTML uma vez (ele nao depende do destinatario) e delega o
+        fatiamento em blocos ao SmtpEmailService. Ninguem ve o endereco de
+        ninguem - o header Bcc nunca vai na mensagem, so a lista do envelope.
+
+        Devolve a lista de docentes que de fato receberam (blocos que falharam
+        ficam de fora, para reenvio numa proxima execucao).
+        """
+        # Normaliza/dedupe: mesma regra do Email.create, so que aqui ja filtramos
+        # antes para nao montar HTML a toa quando a lista fica vazia.
+        vistos: set[str] = set()
+        limpos: list[str] = []
+        for item in recipients or []:
+            endereco = str(item or "").strip()
+            chave = endereco.lower()
+            if endereco and chave not in vistos:
+                vistos.add(chave)
+                limpos.append(endereco)
+        if not limpos:
+            return []
+
+        email = Email.create(
+            {
+                "subject": self.build_subject(source_label, saved_json),
+                "html": self.build_saved_record_html(
+                    source_label=source_label,
+                    source_id=source_id,
+                    pdf_url=pdf_url,
+                    saved_json=saved_json,
+                ),
+                "bcc": limpos,
+            }
+        )
+        return self._ensure_use_case().emails_service.send_bcc_batches(email)
+
     def notify_saved_record(
         self,
         *,
@@ -61,25 +120,14 @@ class SavedRecordEmailNotifier:
         saved_json: dict,
         recipient_email: str | None = None,
     ) -> None:
-        # Um envio por chamada, com destinatario unico: nunca em copia/Cc, para
-        # um docente nao ver o endereco de outro.
+        # Um envio por chamada, com destinatario unico. Usado so pelo e-mail
+        # institucional (RECIPIENT_EMAIL). A notificacao dos docentes passa por
+        # `notify_saved_record_bcc` (copia oculta).
         destinatario = (recipient_email or self.test_recipient or "").strip()
 
         # Se nao houver destinatario, o fluxo simplesmente ignora a notificacao.
         if not destinatario:
             return
-
-        # O caso de uso e criado sob demanda, apenas quando realmente vamos enviar.
-        if self._use_case is None:
-            self._use_case = SendEmailUseCase(SmtpEmailService())
-
-        edital_titulo = self.resolve_edital_titulo(saved_json)
-
-        # O assunto resume o evento principal: registro salvo e origem do dado.
-        subject = (
-            f"[{source_label}] "
-            f"{edital_titulo}"
-        )
 
         # O HTML concentra os campos principais e inclui o JSON salvo para auditoria visual.
         html_body = self.build_saved_record_html(
@@ -90,10 +138,10 @@ class SavedRecordEmailNotifier:
         )
 
         # Aqui a notificacao sai da regra de negocio e entra no caso de uso generico de email.
-        self._use_case.execute(
+        self._ensure_use_case().execute(
             {
                 "to": destinatario,
-                "subject": subject,
+                "subject": self.build_subject(source_label, saved_json),
                 "html": html_body,
             }
         )

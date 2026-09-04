@@ -8,7 +8,7 @@ from .parser import (
     parse_open_calls,
     parse_ptbr_date,
 )
-from .scraper import collect_links, sort_open_call_urls
+from .scraper import collect_calls, collect_links, sort_open_call_urls
 from .url_utils import (
     expand_href_candidates,
     extract_embedded_urls,
@@ -37,4 +37,5 @@ __all__ = [
     "extract_pdf_links_from_detail",
     "sort_open_call_urls",
     "collect_links",
+    "collect_calls",
 ]

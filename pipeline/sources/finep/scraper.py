@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import TypedDict
 from urllib.parse import urljoin
 
@@ -131,7 +132,29 @@ def collect_documents(url_lista: str = BASE_URL) -> list[FinepDocument]:
     return documentos
 
 
-def collect_links(url_lista: str = BASE_URL) -> list[str]:
+def parse_finep_date(raw: str) -> datetime | None:
+    """Converte o `dateCreated` da API da FINEP (ISO 8601, ex.: 2026-08-05T21:39:07Z)."""
+    valor = (raw or "").strip()
+    if not valor:
+        return None
+    try:
+        return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def collect_calls(url_lista: str = BASE_URL) -> list[tuple[str, datetime | None]]:
+    """
+    Coleta os editais abertos da FINEP como pares (url_pdf, data_publicacao).
+
+    A data e o `dateCreated` que a API ja devolve por chamada publica (a API
+    tambem ja entrega ordenado por data decrescente).
+    """
     LAST_COLLECTED_DOCUMENTS.clear()
     LAST_COLLECTED_DOCUMENTS.extend(collect_documents(url_lista))
-    return [doc["pdf_url"] for doc in LAST_COLLECTED_DOCUMENTS]
+    return [(doc["pdf_url"], parse_finep_date(doc["data"])) for doc in LAST_COLLECTED_DOCUMENTS]
+
+
+def collect_links(url_lista: str = BASE_URL) -> list[str]:
+    """So as URLs dos editais abertos da FINEP (sem a data)."""
+    return [url for url, _ in collect_calls(url_lista)]

@@ -11,21 +11,25 @@ SOURCE_REGISTRY = {
         "label": facepe.SOURCE_LABEL,
         "base_url": facepe.BASE_URL,
         "collect_links": facepe.collect_links,
+        "collect_calls": facepe.collect_calls,
     },
     cnpq.SOURCE_KEY: {
         "label": cnpq.SOURCE_LABEL,
         "base_url": cnpq.BASE_URL,
         "collect_links": cnpq.collect_links,
+        "collect_calls": cnpq.collect_calls,
     },
     finep.SOURCE_KEY: {
         "label": finep.SOURCE_LABEL,
         "base_url": finep.BASE_URL,
         "collect_links": finep.collect_links,
+        "collect_calls": finep.collect_calls,
     },
     capes.SOURCE_KEY: {
         "label": capes.SOURCE_LABEL,
         "base_url": capes.BASE_URL,
         "collect_links": capes.collect_links,
+        "collect_calls": capes.collect_calls,
     },
 }
 

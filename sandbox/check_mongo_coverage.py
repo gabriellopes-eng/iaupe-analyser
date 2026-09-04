@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SOURCE,
         help=f"Fonte alvo ({', '.join(sorted(SOURCE_REGISTRY))})",
     )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Omite a lista completa de links (so o resumo de cobertura)",
+    )
     return parser
 
 
@@ -103,9 +108,10 @@ def main():
     print(" - status=erro:", erro)
     print("Faltando:", total_links - found)
 
-    print("\nLinks coletados (em ordem):")
-    for i, u in enumerate(links, start=1):
-        print(f"[{i}/{total_links}] {u}")
+    if not args.summary:
+        print("\nLinks coletados (em ordem):")
+        for i, u in enumerate(links, start=1):
+            print(f"[{i}/{total_links}] {u}")
 
 if __name__ == "__main__":
     try:

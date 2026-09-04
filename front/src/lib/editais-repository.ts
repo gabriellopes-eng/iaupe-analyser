@@ -40,6 +40,7 @@ export async function listEditais(email: string | null): Promise<EditaisResult> 
         url_pdf: 1,
         fonte: 1,
         data_limit_submissao: 1,
+        data_publicacao: 1,
         created_at: 1,
         resultado: 1,
         interessados: 1,
@@ -50,21 +51,22 @@ export async function listEditais(email: string | null): Promise<EditaisResult> 
       .map((doc) => mapDoc(doc as EditalDoc, email))
       .filter((e): e is Edital => e !== null);
 
-    // Ordena do mais recente para o mais antigo, usando `createdAt` (data em que
-    // a pipeline salvou o edital) como proxy de publicacao - a FACEPE nao expoe
-    // a data oficial e a pipeline nao a persiste. Ressalva: os editais da carga
-    // inicial (abril/2026) tem `createdAt` quase identico, entao a ordem entre
-    // eles fica arbitraria; da descoberta de abril em diante, `createdAt` segue
-    // a ordem de publicacao.
-    // Desempate por `id` quando `createdAt` e igual (inclusive null == null):
+    // Ordena do mais recente para o mais antigo pela DATA DE PUBLICACAO da fonte
+    // (`publishedAt`, extraida pelo scraper) - assim a vitrine segue a mesma
+    // ordem do site oficial. Quando falta essa data (CNPq nao expoe; editais
+    // salvos antes deste campo), cai para `createdAt`.
+    // Desempate por `id` quando as chaves sao iguais (inclusive null == null):
     // sem isso a ordem de itens empatados dependeria da ordem de retorno do
     // Mongo, que nao e garantida - e a paginacao por cursor precisa de uma
     // ordenacao 100% deterministica pra nao pular nem repetir itens entre paginas.
+    const sortKey = (e: Edital) => e.publishedAt || e.createdAt;
     all.sort((a, b) => {
-      if (a.createdAt !== b.createdAt) {
-        if (!a.createdAt) return 1;
-        if (!b.createdAt) return -1;
-        return a.createdAt > b.createdAt ? -1 : 1;
+      const ka = sortKey(a);
+      const kb = sortKey(b);
+      if (ka !== kb) {
+        if (!ka) return 1;
+        if (!kb) return -1;
+        return ka > kb ? -1 : 1;
       }
       return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });

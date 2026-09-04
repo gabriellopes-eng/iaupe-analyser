@@ -53,9 +53,13 @@ export interface Edital {
   ref: string;
   titulo: string;
   deadline: string | null; // ISO 8601 (data limite de submissao)
-  // ISO 8601 (quando a pipeline salvou o edital pela 1a vez). Usado como proxy
-  // de "recencia" na ordenacao da vitrine, ja que a FACEPE nao expoe (e a
-  // pipeline nao persiste) a data de publicacao oficial do edital.
+  // ISO 8601 (data em que a FONTE publicou o edital, extraida pelo scraper).
+  // E o criterio principal de ordenacao da vitrine. `null` quando a fonte nao
+  // expoe a data (CNPq) ou o edital foi salvo antes deste campo existir - nesses
+  // casos a ordenacao cai para `createdAt`.
+  publishedAt: string | null;
+  // ISO 8601 (quando a pipeline salvou o edital pela 1a vez). Reserva de
+  // ordenacao quando nao ha `publishedAt`.
   createdAt: string | null;
   areas: string[];
   // true se o e-mail atual (identificado no navegador, sem login) esta na lista

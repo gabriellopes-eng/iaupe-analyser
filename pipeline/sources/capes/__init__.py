@@ -15,7 +15,7 @@ from .policy import (
     is_target_year_document,
     resolve_target_year,
 )
-from .scraper import collect_documents, collect_links
+from .scraper import collect_calls, collect_documents, collect_links
 from .text_utils import clean_href, normalize_text
 
 __all__ = [
@@ -40,4 +40,5 @@ __all__ = [
     "parse_documents_from_program_page",
     "collect_documents",
     "collect_links",
+    "collect_calls",
 ]

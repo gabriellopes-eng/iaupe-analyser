@@ -7,7 +7,7 @@ from .parser import (
     parse_publication_date,
 )
 from .policy import is_primary_edital, resolve_target_year
-from .scraper import collect_links
+from .scraper import collect_calls, collect_links
 from .text_utils import normalize_text
 
 __all__ = [
@@ -23,4 +23,5 @@ __all__ = [
     "extract_primary_pdf_url",
     "parse_calls",
     "collect_links",
+    "collect_calls",
 ]

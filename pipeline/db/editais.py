@@ -27,13 +27,21 @@ def save(
     fonte: str,
     texto_preview: Optional[str] = None,
     data_limit_submissao: Optional[datetime] = None,
+    data_publicacao: Optional[datetime] = None,
 ) -> str:
     """
     Persiste (insert/update) o resultado da analise de um edital.
 
+    `data_publicacao` e a data em que a fonte publicou o edital (extraida pelo
+    scraper). O front ordena a vitrine por ela; quando vem None (ex.: CNPq, ou
+    editais salvos antes deste campo existir), cai no `created_at`.
+
     Retorna: inserted | updated | disabled
     """
     now = datetime.now(timezone.utc)
+
+    if data_publicacao is not None and data_publicacao.tzinfo is None:
+        data_publicacao = data_publicacao.replace(tzinfo=timezone.utc)
 
     doc_set = {
         "url_pdf": url_pdf,
@@ -43,6 +51,11 @@ def save(
         "data_limit_submissao": data_limit_submissao,
         "updated_at": now,
     }
+
+    # So grava data_publicacao quando o scraper trouxe uma: um update posterior
+    # sem data (ou de fonte sem data) nao apaga a que ja estava salva.
+    if data_publicacao is not None:
+        doc_set["data_publicacao"] = data_publicacao
 
     if texto_preview is not None:
         doc_set["texto_preview"] = texto_preview[:2000]
